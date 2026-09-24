@@ -707,7 +707,7 @@
     try { if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(function () {}); } catch (e) { /* 横向きに固定できない端末 */ }
     sound.unlock();
     if (runNow) runLottery(); else renderStage();
-    $('stage-close').focus();
+    st.focus();     // スペースキー・Enter で「次の人」を出せるように、ボタンではなく画面にフォーカス
   }
   function closeStage() {
     $('stage').hidden = true;

@@ -300,3 +300,4 @@ body.stage-open { overflow: hidden; }
   .slip-sub { font-size: 2.8mm; color: #444; }
   ins.adsbygoogle, .google-auto-placed, iframe[id^="aswift"], iframe[id^="google_ads"] { display: none !important; }
 }
+.stage:focus { outline: none; }
