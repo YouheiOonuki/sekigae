@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { backupFileName, buildBackup, parseBackup } = require('../calc.js');
 
-const TOOL = '__REPO__';
+const TOOL = 'sekigae';
 const DATA = { draft: { amount: '1234' } };
 const REQUIRED = ['draft'];
 
