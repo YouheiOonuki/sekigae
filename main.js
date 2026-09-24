@@ -46,10 +46,11 @@
   }
   var sharedGroup = null;          // 共有リンクで開いたとき（「保存する」まで、この端末のデータは書きかえない）
   var reveal = { order: [], shown: 0, anim: false };
-  var swap = { on: false, first: null, warn: '' };
+  // 座席表の手の操作: arm（席のない人のチップを選んだ）、swapOn（入れ替えモード）、swapFirst（入れ替える 1 つ目の席）、warn（守れなくなった条件）
+  var ui = { arm: null, swapOn: false, swapFirst: null, warn: '' };
   var lastSolveError = null;
   var lastNotes = [];
-  var pending = { fixed: false, zone: false, ng: null };
+  var pending = { zone: false };
 
   function group() {
     if (sharedGroup) return sharedGroup;
@@ -74,12 +75,40 @@
     return h ? { layout: h.layout, assign: h.assign } : null;
   }
 
+  /**
+   * いま座席表に出す席順 {名前: 席のキー}: くじの結果（あれば）に、固定（ピン）の人を重ねたもの。
+   * 名簿にいない人・今の席の並びにない席は出さない
+   */
+  function boardByName() {
+    var g = group(), res = currentResult(), known = {}, valid = {}, by = {}, who = {};
+    currentPeople().people.forEach(function (p) { known[p.name] = 1; });
+    C.buildSeats(g.layout).forEach(function (s) { valid[s.key] = 1; });
+    if (res) Object.keys(res.byName).forEach(function (n) { var k = res.byName[n]; if (known[n] && valid[k] && !who[k]) { by[n] = k; who[k] = n; } });
+    g.cons.pins.forEach(function (f) {
+      if (!known[f.p] || !valid[f.seat]) return;
+      var other = who[f.seat];
+      if (other && other !== f.p) delete by[other];
+      if (by[f.p]) delete who[by[f.p]];
+      by[f.p] = f.seat; who[f.seat] = f.p;
+    });
+    return by;
+  }
+  /** 固定（ピン）の席 {席のキー: true}（座席表に出ている人だけ） */
+  function pinnedKeys(by) {
+    var o = {};
+    group().cons.pins.forEach(function (f) { if (by[f.p] === f.seat) o[f.seat] = true; });
+    return o;
+  }
+  function pinCount() { var by = boardByName(); return Object.keys(pinnedKeys(by)).length; }
+
   // ---------------------------------------------------------------
-  // 席の表（編集・結果・大画面・印刷で共通）
+  // 席の表（座席表・席の並びの編集・大画面・印刷で共通）
   // ---------------------------------------------------------------
+  var PIN_SVG = '<svg class="pin" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M10.6 1.4 14.6 5.4 13.2 6.1 10.9 8.4 11.3 11.6 10.2 12.7 7.4 9.9 3.4 13.9 2.1 13.9 2.1 12.6 6.1 8.6 3.3 5.8 4.4 4.7 7.6 5.1 9.9 2.8Z" fill="currentColor"/></svg>';
   /**
    * @param {HTMLElement} box
-   * @param {object} o { layout, names: {席のキー: 名前} | null, hidden: {席のキー: true} | null, onSeat(key), selected }
+   * @param {object} o { layout, names: {席のキー: 名前} | null, hidden: {席のキー: true} | null, pinned: {席のキー: true} | null,
+   *                     onSeat(key), selected, dropTarget }
    */
   function drawSeats(box, o) {
     var L = C.normalizeLayout(o.layout);
@@ -91,7 +120,7 @@
     function seatCell(key) {
       var s = byKey[key];
       var cell = el(o.onSeat ? 'button' : 'div', 'seat');
-      if (o.onSeat) { cell.type = 'button'; cell.addEventListener('click', function () { o.onSeat(key); }); }
+      if (o.onSeat) { cell.type = 'button'; cell.addEventListener('click', function (e) { o.onSeat(key, e); }); }
       cell.dataset.key = key;
       if (!s) {                                   // 使わない席（教室だけ）
         cell.classList.add('off');
@@ -104,8 +133,9 @@
         return cell;
       }
       var place = C.seatPlace(L, key), name = o.names ? o.names[key] : null;
+      var hidden = o.names && o.hidden && o.hidden[key], pin = !!(name && o.pinned && o.pinned[key]);
       cell.appendChild(el('span', 'no', T.seatShort(place)));
-      if (o.names && o.hidden && o.hidden[key]) {
+      if (hidden) {
         cell.classList.add('hidden-seat');
         cell.appendChild(el('span', 'nm', U.hiddenMark));
       } else if (name) {
@@ -113,16 +143,18 @@
         nm.classList.add(name.length > 6 ? 'len-l' : name.length > 4 ? 'len-m' : 'len-s');
         cell.appendChild(nm);
         cell.classList.add('filled');
+        if (pin) { cell.classList.add('pinned'); cell.insertAdjacentHTML('beforeend', PIN_SVG); }
       } else if (o.names) {
         cell.classList.add('empty');
-        cell.appendChild(el('span', 'nm', U.emptySeat));
+        cell.appendChild(el('span', 'nm', o.emptyText === undefined ? U.emptySeat : o.emptyText));
       } else {
         cell.appendChild(el('span', 'nm', ''));
       }
       if (o.selected === key) cell.classList.add('selected');
       if (o.onSeat) {
-        cell.setAttribute('aria-label', T.seatName(place) + (name && !(o.hidden && o.hidden[key]) ? '：' + name : ''));
+        cell.setAttribute('aria-label', T.seatName(place) + (name && !hidden ? '：' + name + (pin ? U.pinnedMark : '') : o.names && !hidden ? '：' + U.emptySeat : ''));
         if (o.editor) cell.setAttribute('aria-pressed', 'false');
+        if (o.selected === key) cell.setAttribute('aria-current', 'true');
       }
       return cell;
     }
@@ -261,7 +293,9 @@
       });
     }
     renderTables(L);
-    $('seat-count').textContent = U.seatCount(C.buildSeats(L).length);
+    var nSeats = C.buildSeats(L).length;
+    $('seat-count').textContent = U.seatCount(nSeats);
+    $('layout-summary').textContent = U.layoutSum(L, nSeats);
   }
   document.querySelectorAll('input[name="mode"]').forEach(function (r) {
     r.addEventListener('change', function () { setLayout(function (l) { l.mode = r.value; }); });
@@ -325,7 +359,7 @@
   document.querySelectorAll('input[name="plist"]').forEach(function (r) {
     r.addEventListener('change', function () {
       group().numbers = r.value === 'numbers';
-      save(); renderPeople(); renderCons();
+      save(); renderPeople(); renderCons(); renderResult();
     });
   });
   var namesTimer = null;
@@ -334,24 +368,24 @@
     save();
     renderPeopleSummary();
     clearTimeout(namesTimer);
-    namesTimer = setTimeout(renderCons, 400);     // 条件の人の選択肢を作り直す（打っている間は待つ）
+    namesTimer = setTimeout(function () { renderCons(); renderResult(); }, 400);     // 条件の人の選択肢・座席表を作り直す（打っている間は待つ）
   });
   $('count').addEventListener('change', function () {
     var n = Math.max(1, Math.min(C.LIMITS.people, Math.round(+this.value) || 1));
     this.value = n;
     group().count = n;
-    save(); renderPeopleSummary(); renderCons();
+    save(); renderPeopleSummary(); renderCons(); renderResult();
   });
 
   // ---------------------------------------------------------------
-  // 3. 条件
+  // 3. 条件（前回・男女交互・前後の席）と、組の条件（隣にしない・隣にしたい）
   // ---------------------------------------------------------------
   function setCons(fn, rerender) {
     var g = group();
     fn(g.cons);
     g.cons = C.normalizeCons(g.cons);
     save();
-    if (rerender !== false) renderCons();
+    if (rerender !== false) renderCons(); else renderConsSummary();
   }
   function personSelect(value, names, label, onChange) {
     var s = el('select');
@@ -370,10 +404,17 @@
     b.addEventListener('click', onClick);
     return b;
   }
+  function renderConsSummary() {
+    var g = group(), cons = g.cons, L = C.normalizeLayout(g.layout), on = [];
+    if (cons.avoidSeat) on.push(U.sumAvoidSeat);
+    if (cons.avoidNeighbor) on.push(U.sumAvoidNb);
+    if (cons.gender) on.push(U.sumGender);
+    if (L.mode === 'class' && cons.zone.length) on.push(U.sumZone(cons.zone.length));
+    $('cons-summary').textContent = on.length ? on.join('・') : U.sumNone;
+  }
   function renderCons() {
     var g = group(), cons = g.cons, L = C.normalizeLayout(g.layout);
     var names = currentPeople().people.map(function (p) { return p.name; });
-    var seats = C.buildSeats(L);
     $('avoid-seat').checked = cons.avoidSeat;
     $('avoid-nb').checked = cons.avoidNeighbor;
     $('gender').checked = cons.gender;
@@ -381,26 +422,8 @@
     var h = g.history[0];
     $('prev-info').textContent = h ? U.prevOf(h.at) : U.prevNone;
 
-    // 固定席
-    var ul = $('fixed-list'); ul.textContent = '';
-    cons.fixed.forEach(function (f, i) {
-      var li = el('li', 'row');
-      li.appendChild(personSelect(f.p, names, U.lblFixedPerson, function (v) { setCons(function (c) { if (v) c.fixed[i].p = v; else c.fixed.splice(i, 1); }); }));
-      var s = el('select');
-      s.setAttribute('aria-label', U.lblFixedSeat);
-      var blank = el('option', null, U.chooseSeat); blank.value = ''; s.appendChild(blank);
-      seats.forEach(function (st) { var o = el('option', null, T.seatName(C.seatPlace(L, st.key))); o.value = st.key; s.appendChild(o); });
-      s.value = seats.some(function (st) { return st.key === f.seat; }) ? f.seat : '';
-      s.addEventListener('change', function () { var v = this.value; setCons(function (c) { if (v) c.fixed[i].seat = v; }); });
-      li.appendChild(s);
-      li.appendChild(removeBtn(U.remove, function () { setCons(function (c) { c.fixed.splice(i, 1); }); }));
-      ul.appendChild(li);
-    });
-    pendingRow(ul, 'fixed');
-    $('n-fixed').textContent = cons.fixed.length ? cons.fixed.length : '';
-
     // 前の席・後ろの席
-    ul = $('zone-list'); ul.textContent = '';
+    var ul = $('zone-list'); ul.textContent = '';
     cons.zone.forEach(function (z, i) {
       var li = el('li', 'row');
       li.appendChild(personSelect(z.p, names, U.lblZonePerson, function (v) { setCons(function (c) { if (v) c.zone[i].p = v; else c.zone.splice(i, 1); }); }));
@@ -418,111 +441,98 @@
       li.appendChild(removeBtn(U.remove, function () { setCons(function (c) { c.zone.splice(i, 1); }); }));
       ul.appendChild(li);
     });
-    pendingRow(ul, 'zone');
+    if (pending.zone) {
+      var li = el('li', 'row pending');
+      li.appendChild(personSelect('', names, U.lblZonePerson, function (v) {
+        if (!v) return;
+        pending.zone = false;
+        setCons(function (c) { c.zone.push({ p: v, where: 'front', n: Math.min(2, L.cls.rows) }); });
+      }));
+      li.appendChild(removeBtn(U.remove, function () { pending.zone = false; renderCons(); }));
+      ul.appendChild(li);
+    }
     $('n-zone').textContent = cons.zone.length ? cons.zone.length : '';
 
-    // 隣にしない組
+    // 「隣」の範囲（隣にしない・隣にしたいの両方に使う）
     var sc = $('ng-scope'); sc.textContent = '';
     (L.mode === 'class' ? [['side', 'side'], ['cross', 'cross'], ['around', 'around']]
       : [['side', 'partySide'], ['cross', 'partyCross'], ['around', 'partyAround'], ['table', 'table']]).forEach(function (x) {
       var o = el('option', null, T.scope[x[1]]); o.value = x[0]; sc.appendChild(o);
     });
     sc.value = L.mode === 'class' && cons.ngScope === 'table' ? 'around' : cons.ngScope;
-    ul = $('ng-list'); ul.textContent = '';
-    cons.ng.forEach(function (pr, i) {
-      var li = el('li', 'row');
-      li.appendChild(personSelect(pr[0], names, U.lblNgA, function (v) { setCons(function (c) { if (v) c.ng[i][0] = v; else c.ng.splice(i, 1); }); }));
-      li.appendChild(el('span', 'and', U.and));
-      li.appendChild(personSelect(pr[1], names, U.lblNgB, function (v) { setCons(function (c) { if (v) c.ng[i][1] = v; else c.ng.splice(i, 1); }); }));
-      li.appendChild(removeBtn(U.remove, function () { setCons(function (c) { c.ng.splice(i, 1); }); }));
+
+    // 組の条件の一覧（1 行 1 組、✕ で外す）
+    var known = {};
+    names.forEach(function (n) { known[n] = 1; });
+    ul = $('pair-list'); ul.textContent = '';
+    cons.pairs.forEach(function (x, i) {
+      var li = el('li', 'pair ' + x.type);
+      var lab = el('span', 'pair-txt');
+      lab.appendChild(el('span', 'pair-type', x.type === 'want' ? U.pairWantShort : U.pairNgShort));
+      lab.appendChild(document.createTextNode(' ' + (known[x.a] ? x.a : U.notInList(x.a)) + U.and + (known[x.b] ? x.b : U.notInList(x.b))));
+      li.appendChild(lab);
+      li.appendChild(removeBtn(U.pairRemove(x.a, x.b, x.type), function () {
+        setCons(function (c) { c.pairs.splice(i, 1); });
+        renderResult();
+        var next = $('pair-list').querySelectorAll('button')[Math.min(i, $('pair-list').querySelectorAll('button').length - 1)];
+        (next || $('pair-add')).focus();
+      }));
       ul.appendChild(li);
     });
-    pendingRow(ul, 'ng');
-    $('n-ng').textContent = cons.ng.length ? cons.ng.length : '';
+    $('n-pairs').textContent = cons.pairs.length ? cons.pairs.length : '';
+    $('pair-list').hidden = !cons.pairs.length;
+    renderConsSummary();
   }
-
-  // 「足す」を押して、まだ人を選んでいない行（normalizeCons は名前の無い行を消すので、画面にだけ持つ）
-  function pendingRow(ul, kind) {
-    if (!pending[kind]) return;
-    var L = C.normalizeLayout(group().layout);
-    var names = currentPeople().people.map(function (p) { return p.name; });
-    var li = el('li', 'row pending');
-    if (kind === 'ng') {
-      var commit = function () {
-        if (pending.ng[0] && pending.ng[1] && pending.ng[0] !== pending.ng[1]) {
-          var pr = pending.ng; pending.ng = null;
-          setCons(function (c) { c.ng.push(pr); });
-        }
-      };
-      li.appendChild(personSelect(pending.ng[0], names, U.lblNgA, function (v) { pending.ng[0] = v; commit(); }));
-      li.appendChild(el('span', 'and', U.and));
-      li.appendChild(personSelect(pending.ng[1], names, U.lblNgB, function (v) { pending.ng[1] = v; commit(); }));
-      li.appendChild(removeBtn(U.remove, function () { pending.ng = null; renderCons(); }));
-    } else {
-      li.appendChild(personSelect('', names, kind === 'fixed' ? U.lblFixedPerson : U.lblZonePerson, function (v) {
-        if (!v) return;
-        pending[kind] = false;
-        setCons(function (c) {
-          if (kind === 'fixed') {
-            // まだ固定されていない席のうち、いちばん番号の小さい席を仮に入れる（あとで選び直す）
-            var used = c.fixed.map(function (f) { return f.seat; });
-            var st = C.buildSeats(L).filter(function (s) { return used.indexOf(s.key) < 0; })[0];
-            if (st) c.fixed.push({ p: v, seat: st.key });
-          } else {
-            c.zone.push({ p: v, where: 'front', n: Math.min(2, L.cls.rows) });
-          }
-        });
-      }));
-      li.appendChild(removeBtn(U.remove, function () { pending[kind] = false; renderCons(); }));
-    }
-    ul.appendChild(li);
-  }
-  function addPending(kind, v) {
-    pending[kind] = v;
+  $('zone-add').addEventListener('click', function () {
+    pending.zone = true;
     renderCons();
-    var sel = document.querySelector('#' + kind + '-list .pending select');
+    var sel = document.querySelector('#zone-list .pending select');
     if (sel) sel.focus();
-  }
-  $('fixed-add').addEventListener('click', function () { addPending('fixed', true); });
-  $('zone-add').addEventListener('click', function () { addPending('zone', true); });
-  $('ng-add').addEventListener('click', function () { addPending('ng', ['', '']); });
-  $('ng-scope').addEventListener('change', function () { var v = this.value; setCons(function (c) { c.ngScope = v; }, false); });
+  });
+  $('ng-scope').addEventListener('change', function () { var v = this.value; setCons(function (c) { c.ngScope = v; }, false); refreshWarn(); });
   $('avoid-seat').addEventListener('change', function () { var v = this.checked; setCons(function (c) { c.avoidSeat = v; }, false); });
   $('avoid-nb').addEventListener('change', function () { var v = this.checked; setCons(function (c) { c.avoidNeighbor = v; }, false); });
   $('gender').addEventListener('change', function () { var v = this.checked; setCons(function (c) { c.gender = v; }, false); });
   $('empty-back').addEventListener('change', function () { var v = this.checked; setCons(function (c) { c.emptyBack = v; }, false); });
 
   // ---------------------------------------------------------------
-  // 4. 席替え（くじ）・発表
+  // 4. 座席表: 置く（ピン）・入れ替える・残りをくじで決める・発表
   // ---------------------------------------------------------------
   function resetView() {
     reveal = { order: [], shown: 0, anim: false };
-    swap = { on: false, first: null, warn: '' };
+    ui = { arm: null, swapOn: false, swapFirst: null, warn: '', prevIsSelf: false };
     lastSolveError = null;
     lastNotes = [];
     $('decide-msg').textContent = '';
     $('status').textContent = '';
-    pending = { fixed: false, zone: false, ng: null };
+    $('board-msg').textContent = '';
+    pending = { zone: false };
+  }
+  function boardMsg(t) { $('board-msg').textContent = t || ''; }
+  function seatLabel(key) { return T.seatName(C.seatPlace(group().layout, key)); }
+  function focusSeat(key) {
+    var c = $('result-grid').querySelector('[data-key="' + key + '"]');
+    if (c) c.focus();
   }
 
-  /** くじを引いて席を決める。うまくいけば true */
+  /** くじを引いて、固定（ピン）していない人の席を決める。うまくいけば true */
   function runLottery() {
     var g = group(), pp = currentPeople(), seed = newSeed();
     var r = C.solve({ layout: g.layout, people: pp.people, cons: g.cons, prev: prevEntry(), seed: seed });
     resetView();
     if (!r.ok) {
+      // 決まらなかったときは、いま出ている席順（手で動かしたものも）をそのまま残す
       lastSolveError = { reason: r.reason, notes: pp.notes.concat(r.notes) };
-      g.last = null;
-      save();
       renderResult();
       return false;
     }
     g.last = { at: U.at(new Date()), seed: seed, layout: C.normalizeLayout(g.layout), assign: r.byName };
     lastNotes = pp.notes.concat(r.notes);
     save();
-    var how = $('reveal').value;
+    var how = $('reveal').value, pinned = pinnedKeys(r.byName);
     if (how !== 'all') {
-      reveal.order = C.revealOrder({ assign: r.assign, byName: r.byName }, g.layout, pp.people, how, seed);
+      // 固定の人は、はじめから出しておく（1 人ずつ出すのは、くじで決まった人だけ）
+      reveal.order = C.revealOrder({ assign: r.assign, byName: r.byName }, g.layout, pp.people, how, seed).filter(function (k) { return !pinned[k]; });
       reveal.shown = 0;
     } else {
       reveal.anim = !reducedMotion();
@@ -540,14 +550,14 @@
   }
   function revealing() { return reveal.order.length > 0 && reveal.shown < reveal.order.length; }
 
-  // 「全員いっせいに」: 1 秒ほど名前がくるくる入れかわってから止まる（動きを減らす設定の端末では出さない）
+  // 「全員いっせいに」: 1 秒ほど名前がくるくる入れかわってから止まる（動きを減らす設定の端末では出さない）。固定の人は動かさない
   function shuffleAnimation() {
-    var res = currentResult();
-    if (!res) return;
-    var names = Object.keys(res.byName), t0 = Date.now();
+    var by = boardByName(), pinned = pinnedKeys(by);
+    var names = Object.keys(by).filter(function (n) { return !pinned[by[n]]; }), t0 = Date.now();
+    if (!names.length) { reveal.anim = false; return; }
     var timer = setInterval(function () {
       [$('result-grid'), $('stage-grid')].forEach(function (box) {
-        box.querySelectorAll('.seat.filled .nm').forEach(function (nm) { nm.textContent = names[Math.floor(Math.random() * names.length)]; });
+        box.querySelectorAll('.seat.filled:not(.pinned) .nm').forEach(function (nm) { nm.textContent = names[Math.floor(Math.random() * names.length)]; });
       });
       sound.tick();
       if (Date.now() - t0 > 1100) {
@@ -577,92 +587,412 @@
     renderResult();
   }
 
-  function renderResult() {
+  /** 手で動かしたあと: 守れていない条件を知らせる（くじの結果が出ているときだけ） */
+  function refreshWarn(render) {
     var g = group(), res = currentResult();
+    ui.warn = '';
+    if (res) {
+      var viol = C.checkAssign({ layout: g.layout, people: currentPeople().people, cons: g.cons, prev: ui.prevIsSelf ? null : prevEntry() }, invert(boardByName()));
+      ui.warn = viol.length ? U.swapWarn(viol.map(T.violation)) : '';
+    }
+    if (render !== false) renderResult();
+  }
+  /** 座席表の手の操作（calc.js の editBoard）。ピンは cons.pins、くじの結果は last.assign に書く */
+  function applyEdit(op) {
+    var g = group(), res = currentResult();
+    // 決定（記録）したばかりの席を動かすときは、その記録を「前回」として比べない（全員が「前回と同じ席」になるため）
+    var h0 = g.history[0];
+    if (res && h0 && JSON.stringify(h0.assign) === JSON.stringify(g.last.assign)) ui.prevIsSelf = true;
+    var s = C.editBoard(boardByName(), g.cons.pins, op);
+    g.cons.pins = s.pins;
+    g.cons = C.normalizeCons(g.cons);
+    if (res) g.last.assign = s.board;
+    save();
+    refreshWarn(false);
+    renderResult();
+  }
+  function doSwap(a, b) {
+    var who = invert(boardByName()), na = who[a], nb = who[b];
+    if (!na && !nb) return;
+    applyEdit({ type: 'swap', a: a, b: b });
+    boardMsg(nb ? U.swapped(na || U.emptySeat, nb) : U.moved(na, seatLabel(b)));
+  }
+
+  function onBoardSeat(key) {
+    if (revealing()) { revealNext(); return; }
+    if (Date.now() - drag.suppress < 400 && drag.suppressKeys.indexOf(key) >= 0) return;      // ドラッグで入れ替えた直後の、その席のクリック
+    var who = invert(boardByName());
+    if (ui.arm) {
+      var n = ui.arm;
+      ui.arm = null;
+      applyEdit({ type: 'place', name: n, seat: key });
+      boardMsg(U.placed(n, seatLabel(key)));
+      focusSeat(key);
+      return;
+    }
+    if (ui.swapFirst) {
+      var first = ui.swapFirst;
+      ui.swapFirst = null;
+      if (first === key) { boardMsg(ui.swapOn ? U.swapHint : ''); renderResult(); focusSeat(key); return; }
+      doSwap(first, key);
+      if (ui.swapOn) $('board-msg').textContent += ' ' + U.swapHint;
+      focusSeat(key);
+      return;
+    }
+    if (ui.swapOn) {
+      ui.swapFirst = key;
+      boardMsg(who[key] ? U.swapPick(who[key]) : U.swapPickEmpty);
+      renderResult();
+      focusSeat(key);
+      return;
+    }
+    openSeatDialog(key);
+  }
+
+  function renderResult() {
+    var g = group(), res = currentResult(), people = currentPeople().people;
+    var by = boardByName(), assign = invert(by), pinned = pinnedKeys(by), nPin = Object.keys(pinned).length, nOn = Object.keys(by).length;
     var st = $('status');
     st.textContent = '';
     st.classList.remove('error');
-    if (!res) {
-      $('result').hidden = true;
-      if (lastSolveError) {
-        st.classList.add('error');
-        st.appendChild(el('strong', null, U.conflictTitle));
-        st.appendChild(el('p', null, T.reason(lastSolveError.reason)));
-        lastSolveError.notes.map(T.note).filter(Boolean).forEach(function (t) { st.appendChild(el('p', 'small', t)); });
-      }
-      renderStage();
-      renderPrint();
-      return;
+    if (lastSolveError) {
+      st.classList.add('error');
+      st.appendChild(el('strong', null, U.conflictTitle));
+      st.appendChild(el('p', null, T.reason(lastSolveError.reason)));
+      lastSolveError.notes.map(T.note).filter(Boolean).forEach(function (t) { st.appendChild(el('p', 'small', t)); });
     }
-    $('result').hidden = false;
-    var n = Object.keys(res.byName).length;
-    $('result-title').textContent = revealing() ? U.reveal(reveal.shown, reveal.order.length) : U.done(n);
-    $('seed-label').textContent = U.seed(C.seedLabel(res.seed));
-    drawSeats($('result-grid'), {
-      layout: g.layout, names: res.assign, hidden: hiddenMap(), selected: swap.first,
-      onSeat: onResultSeat,
+
+    // 席のない人（チップをタップしてから席をタップで置く）
+    var rest = people.filter(function (p) { return !by[p.name]; });
+    $('tray-wrap').hidden = !rest.length || revealing();
+    $('tray-head').textContent = U.trayHead(rest.length);
+    var tray = $('tray');
+    tray.textContent = '';
+    rest.forEach(function (p) {
+      var b = el('button', 'chip', p.name);
+      b.type = 'button';
+      b.dataset.name = p.name;
+      b.setAttribute('aria-pressed', ui.arm === p.name ? 'true' : 'false');
+      b.addEventListener('click', function () {
+        ui.arm = ui.arm === p.name ? null : p.name;
+        ui.swapFirst = null;
+        boardMsg(ui.arm ? U.armHint(p.name) : '');
+        renderResult();
+        var again = [].filter.call($('tray').children, function (c) { return c.dataset.name === p.name; })[0];
+        if (again) again.focus();
+      });
+      tray.appendChild(b);
     });
-    $('result-grid').classList.toggle('swapping', swap.on);
+    if (ui.arm && !rest.some(function (p) { return p.name === ui.arm; })) ui.arm = null;
+
+    drawSeats($('result-grid'), {
+      layout: g.layout, names: assign, hidden: hiddenMap(), pinned: pinned, selected: ui.swapFirst,
+      onSeat: onBoardSeat, emptyText: res ? U.emptySeat : '',
+    });
+    $('result-grid').classList.toggle('swapping', ui.swapOn || !!ui.swapFirst);
+    $('result-grid').classList.toggle('arming', !!ui.arm);
     $('reveal-ctrl').hidden = !revealing();
     $('reveal-count').textContent = revealing() ? U.reveal(reveal.shown, reveal.order.length) : '';
-    $('result-actions').hidden = revealing();
+
+    var runText = nPin ? U.runRest : res ? U.runAgain : U.runFirst;
+    $('run').textContent = runText;
+    $('stage-run').textContent = runText;
+
+    $('result-title').textContent = res ? (revealing() ? U.reveal(reveal.shown, reveal.order.length) : U.done(Object.keys(res.byName).length)) : nPin ? U.pinsOnly(nPin, rest.length) : '';
+    $('seed-label').textContent = res ? U.seed(C.seedLabel(res.seed)) : '';
+    $('result-actions').hidden = revealing() || !nOn;
+    $('decide').hidden = !res;
+    $('show-stage').hidden = !res;
+    $('pins-clear').hidden = !nPin;
+    $('swap').hidden = nOn < 1;
     var ul = $('notes'); ul.textContent = '';
     lastNotes.map(T.note).filter(Boolean).forEach(function (t) { ul.appendChild(el('li', null, t)); });
-    if (swap.warn) ul.appendChild(el('li', 'warn', swap.warn));
-    $('swap').setAttribute('aria-pressed', swap.on ? 'true' : 'false');
-    $('swap').textContent = swap.on ? U.swapEnd : U.swapStart;
+    if (ui.warn) ul.appendChild(el('li', 'warn', ui.warn));
+    $('swap').setAttribute('aria-pressed', ui.swapOn ? 'true' : 'false');
+    $('swap').textContent = ui.swapOn ? U.swapEnd : U.swapStart;
+    $('result').hidden = !res && !nOn && !lastNotes.length;
     // 宴会のときだけ、決まった直後に次にすること（README「ツールを追加するとき」21。値は渡さない）
-    $('next-step').hidden = revealing() || C.normalizeLayout(g.layout).mode !== 'party';
+    $('next-step').hidden = !res || revealing() || C.normalizeLayout(g.layout).mode !== 'party';
     renderStage();
     renderPrint();
   }
 
-  function onResultSeat(key) {
-    if (revealing()) { revealNext(); return; }
-    if (!swap.on) return;
-    var g = group(), res = currentResult();
-    if (!res) return;
-    if (!swap.first) { swap.first = key; $('decide-msg').textContent = res.assign[key] ? U.swapPick(res.assign[key]) : U.swapHint; renderResult(); return; }
-    if (swap.first === key) { swap.first = null; renderResult(); return; }
-    var a = res.assign[swap.first], b = res.assign[key];
-    var by = Object.assign({}, g.last.assign);
-    if (a) by[a] = key;
-    if (b) by[b] = swap.first;
-    g.last.assign = by;
-    swap.first = null;
-    var viol = C.checkAssign({ layout: g.layout, people: currentPeople().people, cons: g.cons, prev: prevEntry() }, invert(by));
-    swap.warn = viol.length ? U.swapWarn(viol.map(T.violation)) : '';
-    $('decide-msg').textContent = U.swapped(a || U.emptySeat, b || U.emptySeat);
-    save();
-    renderResult();
-    var c = $('result-grid').querySelector('[data-key="' + key + '"]');
-    if (c) c.focus();
-  }
-
   $('run').addEventListener('click', function () { sound.unlock(); runLottery(); });
-  $('reroll').addEventListener('click', function () { sound.unlock(); runLottery(); });
   $('reveal-next').addEventListener('click', revealNext);
   $('reveal-all').addEventListener('click', revealAll);
   $('swap').addEventListener('click', function () {
-    swap.on = !swap.on; swap.first = null;
-    $('decide-msg').textContent = swap.on ? U.swapHint : '';
+    ui.swapOn = !ui.swapOn; ui.swapFirst = null; ui.arm = null;
+    boardMsg(ui.swapOn ? U.swapHint : '');
+    renderResult();
+  });
+  $('pins-clear').addEventListener('click', function () {
+    if (!confirm(U.pinsClearConfirm)) return;
+    var g = group(), by = boardByName();
+    g.cons.pins = g.cons.pins.filter(function (f) { return by[f.p] !== f.seat; });     // 座席表に出ていない人（名簿にない人）のピンは残す
+    save();
+    boardMsg(U.pinsCleared);
     renderResult();
   });
   $('decide').addEventListener('click', function () {
     var g = group(), res = currentResult();
     if (!res) return;
+    var by = boardByName(), missing = currentPeople().people.filter(function (p) { return !by[p.name]; });
+    if (missing.length) { $('decide-msg').textContent = U.decideMissing(missing.length); return; }
+    g.last.assign = by;
     var h0 = g.history[0];
-    if (h0 && JSON.stringify(h0.assign) === JSON.stringify(res.byName) && layoutSig(h0.layout) === layoutSig(g.layout)) {
+    if (h0 && JSON.stringify(h0.assign) === JSON.stringify(by) && layoutSig(h0.layout) === layoutSig(g.layout)) {
       $('decide-msg').textContent = U.decideAgain;
       return;
     }
     var at = U.at(new Date());
-    g.history = C.addHistory(g.history, { at: at, seed: res.seed, layout: g.layout, byName: res.byName });
+    g.history = C.addHistory(g.history, { at: at, seed: res.seed, layout: g.layout, byName: by });
     save();
     $('decide-msg').textContent = U.decided(at);
     renderCons();
     renderHistory();
   });
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape' || !$('stage').hidden || document.querySelector('dialog[open]')) return;
+    if (ui.arm || ui.swapFirst || ui.swapOn) { ui.arm = null; ui.swapFirst = null; ui.swapOn = false; boardMsg(''); renderResult(); }
+  });
+
+  // --- ドラッグで入れ替える（マウスはそのまま、タッチは長押ししてから動かす。画面のスクロールと分けるため） ---
+  var drag = { d: null, suppress: 0, suppressKeys: [] };
+  (function dragAndDrop() {
+    var grid = $('result-grid');
+    function end() {
+      var d = drag.d;
+      if (!d) return;
+      clearTimeout(d.timer);
+      if (d.ghost) d.ghost.remove();
+      d.cell.classList.remove('dragging');
+      grid.querySelectorAll('.drop-target').forEach(function (c) { c.classList.remove('drop-target'); });
+      document.body.classList.remove('dragging-seat');
+      drag.d = null;
+    }
+    function move(x, y) {
+      var d = drag.d;
+      d.ghost.style.transform = 'translate(' + Math.round(x) + 'px,' + Math.round(y) + 'px)';
+      var t = document.elementFromPoint(x, y), cell = t && t.closest ? t.closest('#result-grid button.seat') : null;
+      var key = cell && !cell.classList.contains('off') ? cell.dataset.key : null;
+      if (key !== d.over) {
+        grid.querySelectorAll('.drop-target').forEach(function (c) { c.classList.remove('drop-target'); });
+        if (key && key !== d.key) cell.classList.add('drop-target');
+        d.over = key;
+      }
+    }
+    function start() {
+      var d = drag.d;
+      d.on = true;
+      d.cell.classList.add('dragging');
+      document.body.classList.add('dragging-seat');
+      d.ghost = el('div', 'drag-ghost', d.name);
+      d.ghost.setAttribute('aria-hidden', 'true');
+      document.body.appendChild(d.ghost);
+      move(d.x, d.y);
+    }
+    grid.addEventListener('pointerdown', function (e) {
+      if (e.button > 0 || revealing() || reveal.anim) return;
+      var cell = e.target.closest('button.seat.filled');
+      if (!cell) return;
+      end();
+      var name = invert(boardByName())[cell.dataset.key];
+      if (!name) return;
+      drag.d = { key: cell.dataset.key, name: name, x: e.clientX, y: e.clientY, id: e.pointerId, touch: e.pointerType !== 'mouse', on: false, timer: null, cell: cell, ghost: null, over: null };
+      if (drag.d.touch) drag.d.timer = setTimeout(function () { if (drag.d && !drag.d.on) start(); }, 300);
+    });
+    // 動き始め: マウスは 8px 動いたらドラッグ開始。タッチは長押しの前に動いたらスクロールとみなしてやめる
+    document.addEventListener('pointermove', function (e) {
+      var d = drag.d;
+      if (!d || e.pointerId !== d.id) return;
+      if (!d.on) {
+        if (Math.abs(e.clientX - d.x) + Math.abs(e.clientY - d.y) < 8) return;
+        if (d.touch) { end(); return; }
+        start();
+      }
+      move(e.clientX, e.clientY);
+    });
+    document.addEventListener('pointerup', function (e) {
+      var d = drag.d;
+      if (!d || e.pointerId !== d.id) return;
+      if (!d.on) { end(); return; }
+      var from = d.key, to = d.over;
+      end();
+      drag.suppress = Date.now();
+      drag.suppressKeys = [from, to];
+      if (to && to !== from) { doSwap(from, to); focusSeat(to); }
+    });
+    document.addEventListener('pointercancel', function (e) { if (drag.d && e.pointerId === drag.d.id) end(); });
+    // 長押しでドラッグを始めたあとは、指の動きで画面がスクロールしないようにする
+    grid.addEventListener('touchmove', function (e) { if (drag.d && drag.d.on && e.cancelable) e.preventDefault(); }, { passive: false });
+    grid.addEventListener('contextmenu', function (e) { if (drag.d) e.preventDefault(); });
+  })();
+
+  // --- 名前の一覧（検索つきの listbox。席に置く人・組にする 2 人を選ぶ） ---
+  function pickList(list, input, items, selected, onPick) {
+    var q = input.value.trim().toLowerCase();
+    list.textContent = '';
+    list.removeAttribute('aria-activedescendant');
+    var shown = items.filter(function (it) { return !q || it.name.toLowerCase().indexOf(q) >= 0; });
+    shown.forEach(function (it, i) {
+      var o = el('div', 'opt');
+      o.id = list.id + '-o' + i;
+      o.setAttribute('role', 'option');
+      o.setAttribute('aria-selected', selected(it.name) ? 'true' : 'false');
+      o.appendChild(el('span', 'opt-name', it.name));
+      if (it.sub) { o.appendChild(el('span', 'opt-sub', it.sub)); o.setAttribute('aria-label', it.name + '、' + it.sub); }
+      o.addEventListener('click', function () { onPick(it.name); });
+      list.appendChild(o);
+    });
+    if (!shown.length) list.appendChild(el('p', 'opt-none', items.length ? U.pickNone : U.pickNoPeople));
+  }
+  function setActive(list, opt) {
+    list.querySelectorAll('.opt.active').forEach(function (o) { o.classList.remove('active'); });
+    if (!opt) { list.removeAttribute('aria-activedescendant'); return; }
+    opt.classList.add('active');
+    list.setAttribute('aria-activedescendant', opt.id);
+    opt.scrollIntoView({ block: 'nearest' });
+  }
+  function listboxKeys(list, input) {
+    list.addEventListener('keydown', function (e) {
+      var opts = [].slice.call(list.querySelectorAll('[role="option"]'));
+      if (!opts.length) return;
+      var i = opts.indexOf(list.querySelector('.opt.active'));
+      if (e.key === 'ArrowDown') i = Math.min(opts.length - 1, i + 1);
+      else if (e.key === 'ArrowUp') { if (i <= 0) { e.preventDefault(); setActive(list, null); input.focus(); return; } i--; }
+      else if (e.key === 'Home') i = 0;
+      else if (e.key === 'End') i = opts.length - 1;
+      else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (i >= 0) opts[i].click(); return; }
+      else return;
+      e.preventDefault();
+      setActive(list, opts[i]);
+    });
+    // タップ・クリックで入ったときは先頭を選ばない（一覧が先頭へスクロールして、タップした位置がずれるため）
+    var byPointer = false;
+    list.addEventListener('pointerdown', function () { byPointer = true; setTimeout(function () { byPointer = false; }, 600); });
+    list.addEventListener('focus', function () {
+      if (!byPointer && !list.querySelector('.opt.active')) setActive(list, list.querySelector('[role="option"]'));
+    });
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); list.focus(); setActive(list, list.querySelector('[role="option"]')); }
+      else if (e.key === 'Enter') { e.preventDefault(); var first = list.querySelector('[role="option"]'); if (first) first.click(); }
+    });
+  }
+  function coarse() { try { return matchMedia('(pointer: coarse)').matches; } catch (e) { return false; } }
+  function openDialog(d, focusEl) {
+    if (d.showModal) { if (!d.open) d.showModal(); } else d.setAttribute('open', '');
+    if (focusEl) focusEl.focus();
+  }
+  function closeDialog(d) { if (d.close) d.close(); else d.removeAttribute('open'); }
+
+  // --- 席をタップしたとき ---
+  var seatDlg = { key: null };
+  function peopleItems(by, pinned) {
+    return currentPeople().people.map(function (p) {
+      var k = by[p.name];
+      return { name: p.name, sub: k ? U.seatNo(T.seatShort(C.seatPlace(group().layout, k))) + (pinned[k] ? U.pinnedMark : '') : U.noSeat };
+    });
+  }
+  function renderSeatDialog() {
+    var key = seatDlg.key, by = boardByName(), who = invert(by), pinned = pinnedKeys(by), name = who[key];
+    $('seat-dlg-title').textContent = seatLabel(key);
+    $('seat-dlg-now').textContent = name ? U.seatNow(name, !!pinned[key]) : U.seatNowEmpty;
+    $('seat-dlg-acts').hidden = !name;
+    $('seat-pin').textContent = pinned[key] ? U.unpin : U.pinHere;
+    $('seat-pair').textContent = U.pairFor(name || '');
+    pickList($('seat-list'), $('seat-q'), peopleItems(by, pinned), function (n) { return n === name; }, function (n) {
+      var k = seatDlg.key;
+      closeDialog($('seat-dlg'));
+      applyEdit({ type: 'place', name: n, seat: k });
+      boardMsg(U.placed(n, seatLabel(k)));
+      focusSeat(k);
+    });
+  }
+  function openSeatDialog(key) {
+    seatDlg.key = key;
+    $('seat-q').value = '';
+    renderSeatDialog();
+    var cell = $('result-grid').querySelector('[data-key="' + key + '"]');
+    if (cell) cell.classList.add('selected');      // どの席を開いているか（閉じると描き直しで消える）
+    openDialog($('seat-dlg'), coarse() ? $('seat-dlg-close') : $('seat-q'));
+  }
+  $('seat-q').addEventListener('input', renderSeatDialog);
+  listboxKeys($('seat-list'), $('seat-q'));
+  $('seat-dlg-close').addEventListener('click', function () { closeDialog($('seat-dlg')); });
+  $('seat-dlg').addEventListener('close', function () {
+    $('result-grid').querySelectorAll('.seat.selected').forEach(function (c) { if (c.dataset.key !== ui.swapFirst) c.classList.remove('selected'); });
+    if (seatDlg.key && !document.querySelector('dialog[open]')) focusSeat(seatDlg.key);
+  });
+  $('seat-pin').addEventListener('click', function () {
+    var key = seatDlg.key, by = boardByName(), name = invert(by)[key], was = !!pinnedKeys(by)[key];
+    closeDialog($('seat-dlg'));
+    if (!name) return;
+    applyEdit({ type: was ? 'unpin' : 'pin', name: name });
+    boardMsg(was ? U.unpinned(name) : U.pinned(name, seatLabel(key)));
+    focusSeat(key);
+  });
+  $('seat-swap').addEventListener('click', function () {
+    var key = seatDlg.key, name = invert(boardByName())[key];
+    closeDialog($('seat-dlg'));
+    ui.swapFirst = key; ui.arm = null;
+    boardMsg(U.swapPick(name));
+    renderResult();
+    focusSeat(key);
+  });
+  $('seat-clear').addEventListener('click', function () {
+    var key = seatDlg.key, name = invert(boardByName())[key];
+    closeDialog($('seat-dlg'));
+    applyEdit({ type: 'clear', seat: key });
+    boardMsg(U.cleared(name));
+    focusSeat(key);
+  });
+  $('seat-pair').addEventListener('click', function () {
+    var name = invert(boardByName())[seatDlg.key];
+    closeDialog($('seat-dlg'));
+    openPairDialog(name);
+  });
+
+  // --- 組の条件（2 人を選んで「隣にしない」「隣にしたい」） ---
+  var pairSel = [];
+  function renderPairDialog() {
+    var by = boardByName(), pinned = pinnedKeys(by);
+    pickList($('pair-list-box'), $('pair-q'), peopleItems(by, pinned), function (n) { return pairSel.indexOf(n) >= 0; }, function (n) {
+      var i = pairSel.indexOf(n);
+      if (i >= 0) pairSel.splice(i, 1); else { pairSel.push(n); if (pairSel.length > 2) pairSel.shift(); }
+      var active = $('pair-list-box').querySelector('.opt.active'), activeName = active ? active.querySelector('.opt-name').textContent : n;
+      renderPairDialog();
+      var again = [].filter.call($('pair-list-box').querySelectorAll('.opt'), function (o) { return o.querySelector('.opt-name').textContent === activeName; })[0];
+      if (again && document.activeElement === $('pair-list-box')) setActive($('pair-list-box'), again);
+    });
+    var cur = null;
+    if (pairSel.length === 2) {
+      var k = C.pairKey(pairSel[0], pairSel[1]);
+      group().cons.pairs.forEach(function (x) { if (C.pairKey(x.a, x.b) === k) cur = x.type; });
+    }
+    $('pair-dlg-sel').textContent = U.pairSel(pairSel, cur);
+    $('pair-ng').disabled = $('pair-want').disabled = pairSel.length !== 2;
+  }
+  function openPairDialog(preset) {
+    pairSel = preset ? [preset] : [];
+    $('pair-q').value = '';
+    renderPairDialog();
+    openDialog($('pair-dlg'), coarse() ? $('pair-dlg-close') : $('pair-q'));
+  }
+  function addPair(type) {
+    if (pairSel.length !== 2) return;
+    var a = pairSel[0], b = pairSel[1];
+    closeDialog($('pair-dlg'));
+    setCons(function (c) { c.pairs.push({ a: a, b: b, type: type }); });
+    refreshWarn();
+    boardMsg(U.pairAdded(a, b, type));
+    $('pair-add').focus();
+  }
+  $('pair-q').addEventListener('input', renderPairDialog);
+  listboxKeys($('pair-list-box'), $('pair-q'));
+  $('pair-add').addEventListener('click', function () { openPairDialog(null); });
+  $('pair-ng').addEventListener('click', function () { addPair('ng'); });
+  $('pair-want').addEventListener('click', function () { addPair('want'); });
+  $('pair-dlg-close').addEventListener('click', function () { closeDialog($('pair-dlg')); });
 
   // --- 効果音（Web Audio。既定は鳴らさない） ---
   var sound = (function () {
@@ -717,7 +1047,7 @@
   }
   function renderStage() {
     if ($('stage').hidden) return;
-    var g = group(), res = currentResult();
+    var g = group(), res = currentResult(), by = boardByName();
     $('stage-title').textContent = (g.name || '') + (res ? '　' + U.seed(C.seedLabel(res.seed)) : '');
     $('stage-count').textContent = res && revealing() ? U.reveal(reveal.shown, reveal.order.length) : '';
     $('stage-next').hidden = $('stage-all').hidden = !(res && revealing());
@@ -727,7 +1057,7 @@
     var msg = !res && lastSolveError ? T.reason(lastSolveError.reason) : '';
     $('stage-msg').textContent = msg || (window.innerHeight > window.innerWidth ? U.rotateHint : '');
     $('stage-msg').classList.toggle('error', !!msg);
-    drawSeats($('stage-grid'), { layout: g.layout, names: res ? res.assign : {}, hidden: res ? hiddenMap() : null, onSeat: function () { revealNext(); } });
+    drawSeats($('stage-grid'), { layout: g.layout, names: invert(by), hidden: res ? hiddenMap() : null, pinned: pinnedKeys(by), emptyText: res ? U.emptySeat : '', onSeat: function () { revealNext(); } });
     fitStage();
   }
   // 大画面の名前の大きさ: 席の大きさと名前の長さから決める
@@ -740,6 +1070,8 @@
     });
   }
   $('run-stage').addEventListener('click', function () { sound.unlock(); openStage(true, this); });
+  // 発表のしかた（折りたたみの見出しに今の設定を出す）
+  function renderRevealSummary() { $('reveal-summary').textContent = U.revealSum($('reveal').options[$('reveal').selectedIndex].text, $('sound').checked); }
   $('show-stage').addEventListener('click', function () { openStage(false, this); });
   $('stage-run').addEventListener('click', function () { sound.unlock(); runLottery(); });
   $('stage-next').addEventListener('click', revealNext);
@@ -758,7 +1090,7 @@
   // 5. 印刷（A4 横）。#print-area はいつも最新にしておく（ブラウザのメニューから印刷しても白紙にならない）
   // ---------------------------------------------------------------
   function renderPrint() {
-    var g = group(), res = currentResult(), L = C.normalizeLayout(g.layout);
+    var g = group(), res = currentResult(), L = C.normalizeLayout(g.layout), by = boardByName();
     var area = $('print-area');
     area.textContent = '';
     var kind = $('print-kind').value;
@@ -788,7 +1120,8 @@
     head.appendChild(el('span', null, U.printDate(new Date())));
     sh.appendChild(head);
     var body = el('div', 'p-body seat-grid print');
-    drawSeats(body, { layout: L, names: res ? res.assign : null });
+    // 決める前は席の番号だけ（固定した人がいれば、その名前も）。決めたあとは全員
+    drawSeats(body, { layout: L, names: res || Object.keys(by).length ? invert(by) : null, emptyText: res ? U.emptySeat : '' });
     sh.appendChild(body);
     footer(sh);
     area.appendChild(sh);
@@ -947,7 +1280,9 @@
     $('sound').checked = store.get('sound', false) === true;
     var rv = store.get('reveal', 'all');
     if (['all', 'random', 'back', 'front', 'list'].indexOf(rv) >= 0) $('reveal').value = rv;
-    $('reveal').addEventListener('change', function () { store.set('reveal', this.value); });
+    $('reveal').addEventListener('change', function () { store.set('reveal', this.value); renderRevealSummary(); });
+    $('sound').addEventListener('change', renderRevealSummary);
+    renderRevealSummary();
     openShared();
     renderAll();
     addEventListener('hashchange', function () { if (/^#s=/.test(location.hash)) location.reload(); });

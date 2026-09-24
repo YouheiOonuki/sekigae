@@ -240,43 +240,60 @@
 
   // ---------------------------------------------------------------
   // 条件
-  //   fixed: [{ p: 名前, seat: 席のキー }]           この人はこの席
+  //   pins:  [{ p: 名前, seat: 席のキー }]           この人はこの席（座席表でピンを立てた人。くじで動かさない）
   //   zone:  [{ p: 名前, where: 'front'|'back', n }]   前から（後ろから）n 番目の並びまで（教室だけ）
-  //   ng:    [[名前, 名前]]、ngScope                   隣にしない組と「隣」の範囲
+  //   pairs: [{ a, b, type: 'ng'|'want' }]、ngScope    隣にしない組・隣にしたい組と「隣」の範囲（どちらも同じ範囲）
   //   avoidSeat / avoidNeighbor                         前回と同じ席・同じとなり（side）を避ける
   //   gender                                            男女交互（となり（side）が同性にならない）
   //   emptyBack                                         余った席を後ろにまとめる（教室だけ。切ると余りもくじで決める）
+  // 古い形（保存データ・バックアップ・共有リンク）: fixed（= pins と同じ形）と ng（[[名前, 名前]] = type 'ng'）は読み込むときに移す
   // ---------------------------------------------------------------
+  var PAIR_TYPES = ['ng', 'want'];
   function defaultCons() {
-    return { fixed: [], zone: [], ng: [], ngScope: 'cross', avoidSeat: true, avoidNeighbor: true, gender: false, emptyBack: true };
+    return { pins: [], zone: [], pairs: [], ngScope: 'cross', avoidSeat: true, avoidNeighbor: true, gender: false, emptyBack: true };
   }
+  function pairKey(a, b) { return a < b ? a + '\n' + b : b + '\n' + a; }
   function normalizeCons(o) {
     var d = defaultCons();
     o = o && typeof o === 'object' ? o : {};
-    var fixed = [], zone = [], ng = [];
-    (Array.isArray(o.fixed) ? o.fixed : []).slice(0, LIMITS.people).forEach(function (f) {
+    var pins = [], zone = [], pairs = [], pairAt = {};
+    var rawPins = (Array.isArray(o.fixed) ? o.fixed : []).concat(Array.isArray(o.pins) ? o.pins : []);
+    rawPins.slice(0, LIMITS.people * 2).forEach(function (f) {
       if (!f || typeof f !== 'object') return;
       var p = str(f.p, LIMITS.nameLen), seat = str(f.seat, 12);
-      if (p && SEAT_KEY.test(seat)) fixed.push({ p: p, seat: seat });
+      if (!p || !SEAT_KEY.test(seat)) return;
+      // 同じ人は後に書いたほう（新しい pins）を使う。同じ席に 2 人のときの扱いは solve が知らせる
+      pins = pins.filter(function (x) { return x.p !== p; });
+      pins.push({ p: p, seat: seat });
     });
+    pins = pins.slice(0, LIMITS.people);
     (Array.isArray(o.zone) ? o.zone : []).slice(0, LIMITS.people).forEach(function (z) {
       if (!z || typeof z !== 'object') return;
       var p = str(z.p, LIMITS.nameLen);
       if (p) zone.push({ p: p, where: oneOf(z.where, ['front', 'back'], 'front'), n: intIn(z.n, 1, LIMITS.rows, 2) });
     });
-    (Array.isArray(o.ng) ? o.ng : []).slice(0, 200).forEach(function (pr) {
-      if (!Array.isArray(pr)) return;
-      var a = str(pr[0], LIMITS.nameLen), b = str(pr[1], LIMITS.nameLen);
-      if (a && b && a !== b) ng.push([a, b]);
-    });
+    function addPair(a, b, type) {
+      a = str(a, LIMITS.nameLen); b = str(b, LIMITS.nameLen);
+      if (!a || !b || a === b || PAIR_TYPES.indexOf(type) < 0) return;
+      var k = pairKey(a, b);
+      if (pairAt[k] !== undefined) { pairs[pairAt[k]].type = type; return; }   // 同じ 2 人は後に書いた種類
+      if (pairs.length >= 200) return;
+      pairAt[k] = pairs.length;
+      pairs.push({ a: a, b: b, type: type });
+    }
+    (Array.isArray(o.ng) ? o.ng : []).forEach(function (pr) { if (Array.isArray(pr)) addPair(pr[0], pr[1], 'ng'); });
+    (Array.isArray(o.pairs) ? o.pairs : []).forEach(function (pr) { if (pr && typeof pr === 'object') addPair(pr.a, pr.b, pr.type); });
     return {
-      fixed: fixed, zone: zone, ng: ng,
+      pins: pins, zone: zone, pairs: pairs,
       ngScope: oneOf(o.ngScope, SCOPES, d.ngScope),
       avoidSeat: o.avoidSeat === undefined ? d.avoidSeat : !!o.avoidSeat,
       avoidNeighbor: o.avoidNeighbor === undefined ? d.avoidNeighbor : !!o.avoidNeighbor,
       gender: !!o.gender,
       emptyBack: o.emptyBack === undefined ? d.emptyBack : !!o.emptyBack,
     };
+  }
+  function pairsOf(cons, type) {
+    return cons.pairs.filter(function (x) { return x.type === type; }).map(function (x) { return [x.a, x.b]; });
   }
 
   /** 前回の結果（{ layout, assign: {名前: 席のキー} }）から、人ごとの前回の席と前回のとなり（side） */
@@ -304,7 +321,7 @@
   // ---------------------------------------------------------------
   // 席を決める
   // ---------------------------------------------------------------
-  var CATS = ['avoidNeighbor', 'avoidSeat', 'gender', 'ng', 'zone'];   // ゆるめて試す順（外しやすいもの → 大事なもの）
+  var CATS = ['avoidNeighbor', 'avoidSeat', 'gender', 'want', 'ng', 'zone'];   // ゆるめて試す順（外しやすいもの → 大事なもの）
 
   /**
    * 余った席（人数 < 席数）を先に決める。固定席は余らせない
@@ -367,7 +384,7 @@
       return false;
     }
     var fixed = {}, fixedBy = {};
-    cons.fixed.forEach(function (f) {
+    cons.pins.forEach(function (f) {
       if (!known(f.p)) return;
       if (!seatByKey[f.seat]) { notes.push({ code: 'fixedSeatGone', name: f.p }); return; }
       if (fixedBy[f.seat] && fixedBy[f.seat] !== f.p) {
@@ -385,10 +402,10 @@
         zone[z.p] = z;
       });
     } else if (cons.zone.length) notes.push({ code: 'zoneClassOnly' });
-    var ngList = [];
-    cons.ng.forEach(function (pr) {
-      var ka = known(pr[0]), kb = known(pr[1]);
-      if (ka && kb) ngList.push(pr);
+    var ngList = [], wantList = [];
+    cons.pairs.forEach(function (x) {
+      var ka = known(x.a), kb = known(x.b);
+      if (ka && kb) (x.type === 'want' ? wantList : ngList).push([x.a, x.b]);
     });
     if (missing.length) notes.push({ code: 'unknownNames', names: missing });
 
@@ -401,15 +418,16 @@
       avoidSeat: usePrev && cons.avoidSeat,
       gender: cons.gender && people.some(function (p) { return p.g; }),
       ng: ngList.length > 0,
+      want: wantList.length > 0,
       zone: Object.keys(zone).length > 0,
     };
     if (cons.gender && !active.gender) notes.push({ code: 'genderNoData' });
 
     // --- 解く前に数でわかる矛盾 ---
-    var pre = precheck(L, seats, people, fixed, zone, ngList, cons, active);
+    var pre = precheck(L, seats, people, fixed, zone, ngList, cons, active, wantList);
     if (pre) return { ok: false, reason: pre, notes: notes };
 
-    var ctx = { L: L, seats: seats, people: people, fixed: fixed, zone: zone, ngList: ngList, cons: cons, prevInfo: prevInfo, seed: seed, idx: idx };
+    var ctx = { L: L, seats: seats, people: people, fixed: fixed, zone: zone, ngList: ngList, wantList: wantList, cons: cons, prevInfo: prevInfo, seed: seed, idx: idx };
     var budget = opt.budget || 20000;
     var assign = search(ctx, active, budget);
     if (assign) {
@@ -425,14 +443,26 @@
       var a2 = Object.assign({}, active);
       a2[cats[i]] = false;
       if (search(ctx, a2, Math.floor(budget / 2))) {
-        return { ok: false, reason: { code: 'conflict', cat: cats[i], others: cats.filter(function (c) { return c !== cats[i]; }) }, notes: notes };
+        var reason = { code: 'conflict', cat: cats[i], others: cats.filter(function (c) { return c !== cats[i]; }) };
+        // 組の条件なら、どの組を外せば決まるかまで探す（組が多いときは先頭の 30 組まで）
+        if (cats[i] === 'want' || cats[i] === 'ng') {
+          var listKey = cats[i] === 'want' ? 'wantList' : 'ngList', list = ctx[listKey];
+          for (var j = 0; j < list.length && j < 30; j++) {
+            var c2 = Object.assign({}, ctx);
+            c2[listKey] = list.slice(0, j).concat(list.slice(j + 1));
+            var a3 = Object.assign({}, active);
+            a3[cats[i]] = c2[listKey].length > 0;
+            if (search(c2, a3, Math.floor(budget / 4))) { reason.pair = list[j].slice(); break; }
+          }
+        }
+        return { ok: false, reason: reason, notes: notes };
       }
     }
     return { ok: false, reason: { code: cats.length ? 'tooStrict' : 'unsolvable', cats: cats }, notes: notes };
   }
 
   /** 解く前に数でわかる矛盾。なければ null */
-  function precheck(L, seats, people, fixed, zone, ngList, cons, active) {
+  function precheck(L, seats, people, fixed, zone, ngList, cons, active, wantList) {
     var fixedKeys = Object.keys(fixed).map(function (n) { return fixed[n]; });
     // 前から（後ろから）n 番目までに入れたい人数が、そこの席数（固定席を除く）を超えていないか。入れ子なので n ごとに累計で見る
     if (L.mode === 'class' && active.zone) {
@@ -457,6 +487,18 @@
         var a = fixed[ngList[i][0]], b = fixed[ngList[i][1]];
         if (a && b && nb[a].indexOf(b) >= 0) return { code: 'ngFixed', a: ngList[i][0], b: ngList[i][1] };
       }
+    }
+    // 隣にしたい 2 人が、どちらも固定で隣り合っていない／1 人の「隣にしたい相手」が、隣の席の数より多い
+    if (active.want) {
+      var nbw = neighbors(L, cons.ngScope), maxNb = 0, cnt = {};
+      seats.forEach(function (s) { maxNb = Math.max(maxNb, nbw[s.key].length); });
+      for (var wi = 0; wi < wantList.length; wi++) {
+        var wa = fixed[wantList[wi][0]], wb = fixed[wantList[wi][1]];
+        if (wa && wb && nbw[wa].indexOf(wb) < 0) return { code: 'wantFixed', a: wantList[wi][0], b: wantList[wi][1] };
+        cnt[wantList[wi][0]] = (cnt[wantList[wi][0]] || 0) + 1;
+        cnt[wantList[wi][1]] = (cnt[wantList[wi][1]] || 0) + 1;
+      }
+      for (var who in cnt) if (cnt[who] > maxNb) return { code: 'wantMany', name: who, count: cnt[who], max: maxNb };
     }
     // 男女交互: となりでつながった席のかたまり（横の並び・2 人机・テーブルの 1 辺）ごとに、同じ性別は半分（切り上げ）までしか座れない
     if (active.gender) {
@@ -489,13 +531,16 @@
     seats.forEach(function (s, i) { keyIdx[s.key] = i; });
     var sideNb = neighbors(L, 'side');
     var sideI = seats.map(function (s) { return sideNb[s.key].map(function (k) { return keyIdx[k]; }); });
-    var ngSet = null;
-    if (active.ng) {
+    var ngSet = null, nbList = null;
+    if (active.ng || active.want) {
       var ngNb = neighbors(L, cons.ngScope);
       ngSet = seats.map(function (s) { var o = {}; ngNb[s.key].forEach(function (k) { o[keyIdx[k]] = 1; }); return o; });
+      nbList = seats.map(function (s) { return ngNb[s.key].map(function (k) { return keyIdx[k]; }); });
     }
     var ngOf = people.map(function () { return []; });
     if (active.ng) ctx.ngList.forEach(function (pr) { var a = ctx.idx[pr[0]], b = ctx.idx[pr[1]]; ngOf[a].push(b); ngOf[b].push(a); });
+    var wantOf = people.map(function () { return []; });
+    if (active.want) ctx.wantList.forEach(function (pr) { var a = ctx.idx[pr[0]], b = ctx.idx[pr[1]]; wantOf[a].push(b); wantOf[b].push(a); });
     var prevNb = people.map(function (p) {
       var o = {}, has = false;
       if (active.avoidNeighbor) {
@@ -509,11 +554,12 @@
     var fixedKeys = Object.keys(ctx.fixed).map(function (n) { return ctx.fixed[n]; });
 
     var ATTEMPTS = 8, perAttempt = Math.max(1000, Math.floor(budget / ATTEMPTS));
-    var owner, pos, order, dom, nodes;
+    var owner, pos, order, dom, nodes, usableNow;
     for (var attempt = 0; attempt < ATTEMPTS; attempt++) {
       var rng = makeRng(ctx.seed, 7 + attempt);
       var emptyKeys = pickEmpty(L, seats, S - N, fixedKeys, cons.emptyBack, rng);
       var usable = seats.map(function (s) { return emptyKeys.indexOf(s.key) < 0; });
+      usableNow = usable;
       var nFree = 0;
       for (var i = 0; i < S; i++) if (usable[i] && !fixedSeat[i]) nFree++;
       // 男女交互: となりでつながった席のかたまりごとに、男・女の席を交互に先に決めておく（行き止まりを作らないため）
@@ -541,7 +587,7 @@
       // 何の条件もない人（性別なし・隣にしない組なし・前回のとなりなし・席の制限なし）は、最後に残りの席へくじで座る
       var free = [], bound = [];
       for (var p = 0; p < N; p++) {
-        var isFree = !gender[p] && !ngOf[p].length && !prevNb[p] && dom[p].length === nFree;
+        var isFree = !gender[p] && !ngOf[p].length && !wantOf[p].length && !prevNb[p] && dom[p].length === nFree;
         (isFree ? free : bound).push(p);
       }
       order = rng.shuffle(bound);
@@ -614,6 +660,19 @@
         q = pos[ngOf[p][i]];
         if (q >= 0 && ngSet[s][q]) return false;
       }
+      // 隣にしたい相手: もう座っている相手は隣の席に、まだの相手の分は隣に空いた席が残っていること
+      if (wantOf[p].length) {
+        var waiting = 0;
+        for (i = 0; i < wantOf[p].length; i++) {
+          q = pos[wantOf[p][i]];
+          if (q >= 0) { if (!ngSet[s][q]) return false; } else waiting++;
+        }
+        if (waiting) {
+          var room = 0, nl = nbList[s];
+          for (i = 0; i < nl.length; i++) if (usableNow[nl[i]] && owner[nl[i]] < 0) room++;
+          if (room < waiting) return false;
+        }
+      }
       var sn = sideI[s];
       for (i = 0; i < sn.length; i++) {
         q = owner[sn[i]];
@@ -660,7 +719,7 @@
     var seats = buildSeats(L), seatByKey = {};
     seats.forEach(function (s) { seatByKey[s.key] = s; });
     var fixedNames = [];
-    cons.fixed.forEach(function (f) {
+    cons.pins.forEach(function (f) {
       if (!byName[f.p] || !seatByKey[f.seat]) return;
       fixedNames.push(f.p);
       if (byName[f.p] !== f.seat) out.push({ code: 'vFixed', name: f.p });
@@ -674,9 +733,12 @@
       });
     }
     var ngNb = neighbors(L, cons.ngScope);
-    cons.ng.forEach(function (pr) {
-      var a = byName[pr[0]], b = byName[pr[1]];
-      if (a && b && ngNb[a].indexOf(b) >= 0) out.push({ code: 'vNg', a: pr[0], b: pr[1] });
+    cons.pairs.forEach(function (x) {
+      var a = byName[x.a], b = byName[x.b];
+      if (!a || !b) return;
+      var near = ngNb[a].indexOf(b) >= 0;
+      if (x.type === 'ng' && near) out.push({ code: 'vNg', a: x.a, b: x.b });
+      if (x.type === 'want' && !near) out.push({ code: 'vWant', a: x.a, b: x.b });
     });
     var side = neighbors(L, 'side'), g = {};
     (input.people || []).forEach(function (p) { g[p.name] = p.g; });
@@ -692,6 +754,57 @@
       if (prev && cons.avoidSeat && prev.seatOf[name] === k && fixedNames.indexOf(name) < 0) out.push({ code: 'vPrevSeat', name: name });
     });
     return out;
+  }
+
+  // ---------------------------------------------------------------
+  // 座席表での手の操作（置く・入れ替える・ピンを外す・空ける）
+  //   board: {名前: 席のキー}（いま座席表に出ている人。くじの前はピンの人だけ）
+  //   pins:  [{ p, seat }]（cons.pins と同じ形）
+  //   ピンは人に付いていく: ピンの人を入れ替えると、入れ替えた先の席でピンのまま
+  //   board に出ていない人のピン（名簿から消えた人など）はそのまま残す。ただし同じ席に人を置いたら外す
+  // @param op { type: 'place', name, seat } この人をこの席に置いてピン。席にいた人は、置いた人の元の席へ（元の席がなければ席なし）
+  //           { type: 'swap', a, b }        2 つの席（キー）の人を入れ替える（片方が空席なら移すだけ）
+  //           { type: 'pin', name } / { type: 'unpin', name }
+  //           { type: 'clear', seat }       席を空ける（その人はピンも外れて、席なしになる）
+  // @returns { board, pins }（新しいもの。渡したものは変えない）
+  // ---------------------------------------------------------------
+  function editBoard(board, pins, op) {
+    var by = Object.assign({}, board || {}), who = {}, pinned = {}, order = [], extra = [];
+    Object.keys(by).forEach(function (n) { who[by[n]] = n; });
+    (pins || []).forEach(function (f) {
+      if (by[f.p] === f.seat) { pinned[f.p] = 1; order.push(f.p); } else extra.push({ p: f.p, seat: f.seat });
+    });
+    function pin(n) { if (!pinned[n]) { pinned[n] = 1; order.push(n); } }
+    function unpin(n) { delete pinned[n]; }
+    function unseat(n) { delete who[by[n]]; delete by[n]; unpin(n); }
+    op = op || {};
+    if (op.type === 'place' && op.name && op.seat) {
+      var from = by[op.name], other = who[op.seat];
+      if (other !== op.name) {
+        if (from) delete who[from];
+        if (other) {
+          if (from) { by[other] = from; who[from] = other; } else unseat(other);
+        }
+        by[op.name] = op.seat; who[op.seat] = op.name;
+      }
+      pin(op.name);
+      extra = extra.filter(function (f) { return f.seat !== op.seat && f.p !== op.name; });
+    } else if (op.type === 'swap' && op.a && op.b && op.a !== op.b) {
+      var na = who[op.a], nb = who[op.b];
+      delete who[op.a]; delete who[op.b];
+      if (na) { by[na] = op.b; who[op.b] = na; }
+      if (nb) { by[nb] = op.a; who[op.a] = nb; }
+      extra = extra.filter(function (f) { return (!na || f.seat !== op.b) && (!nb || f.seat !== op.a); });
+    } else if (op.type === 'pin' && by[op.name]) {
+      pin(op.name);
+    } else if (op.type === 'unpin') {
+      unpin(op.name);
+      extra = extra.filter(function (f) { return f.p !== op.name; });
+    } else if (op.type === 'clear' && who[op.seat]) {
+      unseat(who[op.seat]);
+    }
+    var out = order.filter(function (n) { return pinned[n] && by[n]; }).map(function (n) { return { p: n, seat: by[n] }; });
+    return { board: by, pins: out.concat(extra) };
   }
 
   // ---------------------------------------------------------------
@@ -882,7 +995,7 @@
     defaultLayout: defaultLayout, normalizeLayout: normalizeLayout, tableNameAt: tableNameAt, buildSeats: buildSeats, neighbors: neighbors,
     parsePeople: parsePeople, numberPeople: numberPeople, peopleToText: peopleToText,
     defaultCons: defaultCons, normalizeCons: normalizeCons, previousInfo: previousInfo, sameShape: sameShape,
-    solve: solve, checkAssign: checkAssign, seatPlace: seatPlace, classGrid: classGrid, revealOrder: revealOrder,
+    solve: solve, checkAssign: checkAssign, editBoard: editBoard, pairKey: pairKey, seatPlace: seatPlace, classGrid: classGrid, revealOrder: revealOrder,
     encodeShare: encodeShare, decodeShare: decodeShare,
     newGroup: newGroup, normalizeGroup: normalizeGroup, normalizeData: normalizeData, addHistory: addHistory,
     backupFileName: backupFileName, buildBackup: buildBackup, parseBackup: parseBackup,
