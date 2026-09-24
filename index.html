@@ -47,8 +47,8 @@
 <body class="tool-page">
 
   <header class="app-header">
-    <h1>席替え・席順くじ</h1>
-    <p class="subtitle">教室の席替えと、宴会・飲み会のテーブル席決めに。条件つきのくじで、大画面で発表、座席表を印刷。</p>
+    <h1>座席表を作る・席替え</h1>
+    <p class="subtitle">席をタップして人を置き、残りは条件つきのくじで決めます。教室にも宴会にも。</p>
   </header>
 
   <main class="app-main">
@@ -62,20 +62,105 @@
       <p class="small">席の並び・名簿・条件を入れて、くじで席を決めます。前回と同じ席を避ける・隣にしない組・前の席の指定ができます。登録なし・無料。</p>
     </div>
 
-    <section class="card" aria-labelledby="h-group">
-      <h2 id="h-group">クラス・グループ</h2>
-      <div class="field inline-field">
-        <label for="group" class="sr-only">クラス・グループ</label>
+    <section class="card" aria-labelledby="h-people">
+      <h2 id="h-people"><span class="step">1</span>名簿</h2>
+      <div class="field inline-field group-row">
+        <label for="group">クラス</label>
         <select id="group"></select>
-        <button type="button" id="group-new" class="btn btn-sub">新しく作る</button>
-        <button type="button" id="group-rename" class="btn btn-sub">名前を変える</button>
-        <button type="button" id="group-delete" class="btn btn-sub">削除</button>
+        <details class="mini">
+          <summary>追加・変更</summary>
+          <p class="btn-row">
+            <button type="button" id="group-new" class="btn btn-sub btn-s">新しく作る</button>
+            <button type="button" id="group-rename" class="btn btn-sub btn-s">名前を変える</button>
+            <button type="button" id="group-delete" class="btn btn-sub btn-s">削除</button>
+          </p>
+          <p class="hint">クラスや会ごとに、席の並び・名簿・条件・これまでの席を分けて保存します。</p>
+        </details>
       </div>
-      <p class="hint">クラスや会ごとに、席の並び・名簿・条件・これまでの席を分けて保存します。</p>
+      <div class="seg" role="radiogroup" aria-label="名簿の入れ方">
+        <label><input type="radio" name="plist" value="names" checked> 名前を入れる</label>
+        <label><input type="radio" name="plist" value="numbers"> 番号だけ</label>
+      </div>
+      <div id="names-panel" class="field">
+        <label for="names">1 行に 1 人（名簿から貼り付け）</label>
+        <textarea id="names" rows="5" spellcheck="false" placeholder="例：&#10;青木&#10;井上,女&#10;上田,男"></textarea>
+        <p class="hint">「名前,男」「名前,女」と書くと男女交互に使えます。名前はこの端末の外に送りません。</p>
+      </div>
+      <div id="numbers-panel" class="field" hidden>
+        <label for="count">人数</label>
+        <input type="number" id="count" inputmode="numeric" min="1" max="300" value="30">
+        <p class="hint">1 番から順に番号で席を決めます（出席番号として使えます）。</p>
+      </div>
+      <p id="people-summary" class="small" aria-live="polite"></p>
     </section>
 
-    <section class="card" aria-labelledby="h-layout">
-      <h2 id="h-layout"><span class="step">1</span>席の並び</h2>
+    <section class="card" aria-labelledby="h-board" id="sec-run">
+      <h2 id="h-board"><span class="step">2</span>座席表</h2>
+      <p class="hint">席をタップして人を置くと固定（ピン）。残りはくじで決まります。</p>
+      <div id="tray-wrap" hidden>
+        <p id="tray-head" class="tray-head"></p>
+        <div id="tray" class="tray" role="group" aria-labelledby="tray-head"></div>
+      </div>
+      <div class="grid-scroll"><div id="result-grid" class="seat-grid board"></div></div>
+      <p id="board-msg" class="board-msg" aria-live="polite"></p>
+      <p class="btn-row" id="reveal-ctrl" hidden>
+        <button type="button" id="reveal-next" class="btn">次の人</button>
+        <button type="button" id="reveal-all" class="btn btn-sub">全部出す</button>
+        <span id="reveal-count" class="small"></span>
+      </p>
+      <p class="btn-row run-row">
+        <button type="button" id="run" class="btn btn-big">席替えする</button>
+        <button type="button" id="run-stage" class="btn btn-big btn-sub">大画面で</button>
+      </p>
+      <div id="status" class="status" aria-live="polite"></div>
+
+      <div id="result">
+        <p class="result-head"><strong id="result-title"></strong> <span id="seed-label" class="small"></span></p>
+        <ul id="notes" class="notes"></ul>
+        <p class="btn-row" id="result-actions">
+          <button type="button" id="decide" class="btn">この席で決定（記録する）</button>
+          <button type="button" id="swap" class="btn btn-sub" aria-pressed="false">2 人を入れ替える</button>
+          <button type="button" id="show-stage" class="btn btn-sub">大画面で見せる</button>
+          <button type="button" id="print" class="btn btn-sub">座席表を印刷</button>
+          <button type="button" id="pins-clear" class="btn btn-sub">固定をすべて外す</button>
+        </p>
+        <p id="decide-msg" class="small" aria-live="polite"></p>
+        <p id="next-step" class="next-step" hidden>当日の精算は → <a href="../easy-split/">傾斜割り勘（幹事 0 円・2 次会の合算も）</a></p>
+      </div>
+
+      <div class="pairs-box">
+        <h3 class="sub" id="h-pairs">組の条件 <span class="badge" id="n-pairs"></span></h3>
+        <ul id="pair-list" class="pair-list" aria-labelledby="h-pairs"></ul>
+        <p class="btn-row">
+          <button type="button" id="pair-add" class="btn btn-sub btn-s">2 人を選んで組にする</button>
+        </p>
+        <div class="field inline-field scope-row">
+          <label for="ng-scope">「隣」の範囲</label>
+          <select id="ng-scope"></select>
+        </div>
+      </div>
+
+      <details class="mini" id="d-reveal">
+        <summary id="reveal-summary">発表のしかた</summary>
+        <div class="grid-fields">
+          <div class="field">
+            <label for="reveal">発表のしかた</label>
+            <select id="reveal">
+              <option value="all">全員いっせいに</option>
+              <option value="random">1 人ずつ（くじの順）</option>
+              <option value="back">1 人ずつ（後ろの席から）</option>
+              <option value="front">1 人ずつ（前の席から）</option>
+              <option value="list">1 人ずつ（名簿の順）</option>
+            </select>
+          </div>
+          <label class="check"><input type="checkbox" id="sound"> 効果音を鳴らす</label>
+        </div>
+        <p class="hint">固定（ピン）の人は、はじめから出ています。</p>
+      </details>
+    </section>
+
+    <details class="card fold" id="d-layout">
+      <summary><h2 id="h-layout">席の並び</h2><span id="layout-summary" class="fold-state"></span></summary>
       <div class="seg" role="radiogroup" aria-label="使う場面">
         <label><input type="radio" name="mode" value="class" checked> 教室</label>
         <label><input type="radio" name="mode" value="party"> 宴会・テーブル</label>
@@ -100,7 +185,7 @@
           </div>
         </div>
         <label class="check"><input type="checkbox" id="pairs"> 2 人机（2 席ずつ机を並べ、机のあいだを通路にする）</label>
-        <p class="hint">席をタップすると「使わない席（×）」になります。もう一度タップで戻ります。</p>
+        <p class="hint">下の席をタップすると「使わない席（×）」になります。もう一度タップで戻ります。</p>
         <div class="grid-scroll"><div id="layout-grid" class="seat-grid editor"></div></div>
       </div>
 
@@ -110,101 +195,26 @@
         <p class="hint">1 つのテーブルは向かい合わせの 2 列です（奥の列に半分、手前に残り）。</p>
       </div>
       <p id="seat-count" class="small"></p>
-    </section>
+    </details>
 
-    <section class="card" aria-labelledby="h-people">
-      <h2 id="h-people"><span class="step">2</span>名簿</h2>
-      <div class="seg" role="radiogroup" aria-label="名簿の入れ方">
-        <label><input type="radio" name="plist" value="names" checked> 名前を入れる</label>
-        <label><input type="radio" name="plist" value="numbers"> 番号だけ（名前を入れない）</label>
-      </div>
-      <div id="names-panel" class="field">
-        <label for="names">1 行に 1 人（Excel や名簿からそのまま貼り付けられます）</label>
-        <p class="hint">名前はこの端末のブラウザにだけ保存され、どこにも送信されません。名前を入れたくないときは「番号だけ」や、出席番号・イニシャルでも使えます。男女交互にするときは「名前,男」「名前,女」のように書きます。</p>
-        <textarea id="names" rows="8" spellcheck="false" placeholder="例：&#10;青木&#10;井上,女&#10;上田,男"></textarea>
-      </div>
-      <div id="numbers-panel" class="field" hidden>
-        <label for="count">人数</label>
-        <input type="number" id="count" inputmode="numeric" min="1" max="300" value="30">
-        <p class="hint">1 番から順に番号で席を決めます（出席番号として使えます）。</p>
-      </div>
-      <p id="people-summary" class="small" aria-live="polite"></p>
-    </section>
-
-    <section class="card" aria-labelledby="h-cons">
-      <h2 id="h-cons"><span class="step">3</span>条件（なくても大丈夫）</h2>
+    <details class="card fold" id="d-cons">
+      <summary><h2 id="h-cons">条件</h2><span id="cons-summary" class="fold-state"></span></summary>
       <label class="check"><input type="checkbox" id="avoid-seat"> 前回と同じ席を避ける</label>
       <label class="check"><input type="checkbox" id="avoid-nb"> 前回と同じとなりを避ける</label>
       <p id="prev-info" class="hint"></p>
       <label class="check"><input type="checkbox" id="gender"> 男女交互（となりが異性になる。2 人机なら同じ机が男女）</label>
       <label class="check" id="empty-back-wrap"><input type="checkbox" id="empty-back"> 余った席は後ろにまとめる</label>
-
-      <details id="d-fixed" class="cons-block">
-        <summary>固定席（この人はこの席）<span class="badge" id="n-fixed"></span></summary>
-        <ul id="fixed-list" class="rows"></ul>
-        <p><button type="button" id="fixed-add" class="btn btn-sub">固定席を足す</button></p>
-      </details>
-      <details id="d-zone" class="cons-block">
-        <summary>前の席・後ろの席にしたい人<span class="badge" id="n-zone"></span></summary>
+      <div id="d-zone" class="cons-block">
+        <h3 class="sub">前の席・後ろの席にしたい人 <span class="badge" id="n-zone"></span></h3>
         <p class="hint">目の見え方・聞こえ方や、背の高さなどに。「前から 2」なら、前から 2 番目の並びまでのどこかになります。</p>
         <ul id="zone-list" class="rows"></ul>
         <p><button type="button" id="zone-add" class="btn btn-sub">指定を足す</button></p>
-      </details>
-      <details id="d-ng" class="cons-block">
-        <summary>隣にしない組<span class="badge" id="n-ng"></span></summary>
-        <div class="field">
-          <label for="ng-scope">「隣」の範囲</label>
-          <select id="ng-scope"></select>
-        </div>
-        <ul id="ng-list" class="rows"></ul>
-        <p><button type="button" id="ng-add" class="btn btn-sub">組を足す</button></p>
-      </details>
-    </section>
-
-    <section class="card" aria-labelledby="h-run" id="sec-run">
-      <h2 id="h-run"><span class="step">4</span>席替え</h2>
-      <div class="grid-fields">
-        <div class="field">
-          <label for="reveal">発表のしかた</label>
-          <select id="reveal">
-            <option value="all">全員いっせいに</option>
-            <option value="random">1 人ずつ（くじの順）</option>
-            <option value="back">1 人ずつ（後ろの席から）</option>
-            <option value="front">1 人ずつ（前の席から）</option>
-            <option value="list">1 人ずつ（名簿の順）</option>
-          </select>
-        </div>
-        <label class="check"><input type="checkbox" id="sound"> 効果音を鳴らす</label>
       </div>
-      <p class="btn-row">
-        <button type="button" id="run" class="btn btn-big">席替えする</button>
-        <button type="button" id="run-stage" class="btn btn-big btn-sub">大画面で席替えする</button>
-      </p>
-      <div id="status" class="status" aria-live="polite"></div>
+      <p class="hint">特定の席に決めたい人は、座席表でその席をタップして置きます。隣にしない・隣にしたい 2 人は「組の条件」で。</p>
+    </details>
 
-      <div id="result" hidden>
-        <p class="result-head"><strong id="result-title"></strong> <span id="seed-label" class="small"></span></p>
-        <div class="grid-scroll"><div id="result-grid" class="seat-grid"></div></div>
-        <p class="btn-row" id="reveal-ctrl" hidden>
-          <button type="button" id="reveal-next" class="btn">次の人</button>
-          <button type="button" id="reveal-all" class="btn btn-sub">全部出す</button>
-          <span id="reveal-count" class="small"></span>
-        </p>
-        <ul id="notes" class="notes"></ul>
-        <p class="btn-row" id="result-actions">
-          <button type="button" id="decide" class="btn">この席で決定（記録する）</button>
-          <button type="button" id="reroll" class="btn btn-sub">別のくじでやり直す</button>
-          <button type="button" id="swap" class="btn btn-sub" aria-pressed="false">2 人を入れ替える</button>
-          <button type="button" id="show-stage" class="btn btn-sub">大画面で見せる</button>
-          <button type="button" id="print" class="btn btn-sub">座席表を印刷</button>
-        </p>
-        <p id="decide-msg" class="small" aria-live="polite"></p>
-        <p id="next-step" class="next-step" hidden>当日の精算は → <a href="../easy-split/">傾斜割り勘（幹事 0 円・2 次会の合算も）</a></p>
-      </div>
-    </section>
-
-    <section class="card" aria-labelledby="h-print">
-      <h2 id="h-print">印刷（A4 横）</h2>
+    <details class="card fold" id="d-print">
+      <summary><h2 id="h-print">印刷（A4 横）</h2></summary>
       <div class="grid-fields">
         <div class="field">
           <label for="print-kind">印刷するもの</label>
@@ -219,12 +229,12 @@
         </div>
       </div>
       <label class="check"><input type="checkbox" id="print-credit" checked> 紙の下に「yorozu-craft.com/sekigae/print/ で作成」と小さく入れる</label>
-      <p class="hint">席を決める前に印刷すると、席の番号だけの座席表になります（手書き用）。教卓の向きは「席の並び」の設定のとおりです。</p>
+      <p class="hint">席を決める前に印刷すると、固定した人の名前と席の番号だけの座席表になります（手書き用）。教卓の向きは「席の並び」の設定のとおりです。</p>
       <p><button type="button" id="print2" class="btn">印刷する</button></p>
-    </section>
+    </details>
 
-    <section class="card" aria-labelledby="h-save">
-      <h2 id="h-save">記録・共有・バックアップ</h2>
+    <details class="card fold" id="d-save">
+      <summary><h2 id="h-save">記録・共有・バックアップ</h2></summary>
       <h3 class="sub">これまでの席（新しい順・10 件まで）</h3>
       <ol id="history" class="history"></ol>
       <h3 class="sub">共有リンク</h3>
@@ -236,6 +246,7 @@
       <p id="share-msg" class="small" aria-live="polite"></p>
       <input type="text" id="share-url" class="share-url" readonly hidden aria-label="共有リンク">
       <h3 class="sub">ファイルに保存（機種変更・ブラウザのデータを消す前に）</h3>
+      <p class="hint">名簿・条件・記録はこの端末のブラウザ（localStorage、キー sekigae_data）にだけ保存され、外部には送信されません。</p>
       <p class="btn-row">
         <!-- 保存内容のファイルへの書き出し・読み込み（README「ツールを追加するとき」20） -->
         <button type="button" id="backup-export" class="btn btn-sub">ファイルに書き出す</button>
@@ -243,7 +254,7 @@
       </p>
       <input type="file" id="backup-file" accept=".json,application/json" hidden>
       <p id="backup-msg" class="small" aria-live="polite"></p>
-    </section>
+    </details>
 
     <p class="small center"><a href="./guide.html">使い方・条件の付け方・大画面のコツ・よくある質問</a></p>
 
@@ -278,6 +289,36 @@
     <div id="stage-grid" class="seat-grid big"></div>
     <p id="stage-msg" class="stage-msg" aria-live="polite"></p>
   </div>
+
+  <!-- 座席表の席をタップしたとき: この席に置く人を選ぶ・固定を外す・入れ替える・空ける -->
+  <dialog id="seat-dlg" class="dlg" aria-labelledby="seat-dlg-title">
+    <p class="dlg-title" id="seat-dlg-title"></p>
+    <p id="seat-dlg-now" class="small"></p>
+    <p class="btn-row" id="seat-dlg-acts">
+      <button type="button" id="seat-pin" class="btn btn-sub btn-s"></button>
+      <button type="button" id="seat-swap" class="btn btn-sub btn-s">入れ替える</button>
+      <button type="button" id="seat-clear" class="btn btn-sub btn-s">席を空ける</button>
+      <button type="button" id="seat-pair" class="btn btn-sub btn-s">組の条件</button>
+    </p>
+    <label for="seat-q" class="dlg-label">この席に置く人</label>
+    <input type="search" id="seat-q" class="pick-q" placeholder="名前で探す" autocomplete="off" aria-controls="seat-list">
+    <div id="seat-list" class="pick-list" role="listbox" tabindex="0" aria-label="この席に置く人"></div>
+    <p class="btn-row dlg-foot"><button type="button" id="seat-dlg-close" class="btn btn-sub">閉じる</button></p>
+  </dialog>
+
+  <!-- 組の条件: 2 人を選んで「隣にしない」「隣にしたい」 -->
+  <dialog id="pair-dlg" class="dlg" aria-labelledby="pair-dlg-title">
+    <p class="dlg-title" id="pair-dlg-title">組にする 2 人を選ぶ</p>
+    <p id="pair-dlg-sel" class="pair-sel" aria-live="polite"></p>
+    <label for="pair-q" class="sr-only">名前で探す</label>
+    <input type="search" id="pair-q" class="pick-q" placeholder="名前で探す" autocomplete="off" aria-controls="pair-list-box">
+    <div id="pair-list-box" class="pick-list" role="listbox" aria-multiselectable="true" tabindex="0" aria-label="組にする 2 人"></div>
+    <p class="btn-row dlg-foot">
+      <button type="button" id="pair-ng" class="btn" disabled>隣にしない</button>
+      <button type="button" id="pair-want" class="btn" disabled>隣にしたい</button>
+      <button type="button" id="pair-dlg-close" class="btn btn-sub">閉じる</button>
+    </p>
+  </dialog>
 
   <!-- 印刷するもの（いつも最新にしておく。ブラウザのメニューから印刷しても白紙にならないように） -->
   <div id="print-area" class="print-area" aria-hidden="true"></div>

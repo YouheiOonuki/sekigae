@@ -241,6 +241,84 @@ button.seat:focus-visible { outline: 2px solid var(--accent); outline-offset: 1p
 .tbl-side { display: grid; grid-template-columns: repeat(var(--n), minmax(3.4rem, 1fr)); gap: 0.25rem; }
 .tbl-board { height: 0.9rem; margin: 0.25rem 0; border-radius: 4px; background: var(--border); }
 
+/* 座席表: 置く・入れ替える */
+.group-row { align-items: center; margin-bottom: 0.8rem; }
+.group-row > label { font-weight: 600; font-size: 0.92rem; margin: 0; }
+.group-row select { flex: 1 1 8rem; max-width: 14rem; }
+details.mini { font-size: 0.88rem; }
+details.mini > summary { cursor: pointer; color: var(--accent); padding: 0.35rem 0; min-height: 2.75rem; display: flex; align-items: center; }
+details.mini[open] { flex-basis: 100%; }
+#d-reveal { margin-top: 0.6rem; border-top: 1px solid var(--border); }
+
+.tray-head { font-size: 0.82rem; color: var(--muted); margin: 0.2rem 0 0.3rem; }
+.tray { display: flex; flex-wrap: wrap; gap: 0.35rem; max-height: 6.6rem; overflow-y: auto; padding: 0.1rem; margin-bottom: 0.4rem; }
+.chip {
+  font: inherit; font-size: 0.85rem; min-height: 2.75rem; padding: 0.2rem 0.7rem; border-radius: 1.4rem;
+  border: 1px solid var(--border); background: var(--seat); color: var(--text); cursor: pointer;
+}
+.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--card); font-weight: 700; }
+.chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.board-msg { min-height: 1.3em; font-size: 0.85rem; color: var(--accent); margin: 0.2rem 0; }
+.run-row { margin-top: 0.3rem; }
+
+.board .seat { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.board .seat.pinned { border: 2px solid var(--accent); background: var(--accent-soft); }
+.seat .pin { position: absolute; top: 2px; right: 2px; width: 0.8rem; height: 0.8rem; color: var(--accent); }
+.board.arming button.seat, .board.swapping button.seat { cursor: pointer; }
+.board.arming button.seat:not(.filled) { border-style: dashed; border-color: var(--accent); }
+.seat.dragging { opacity: 0.4; }
+.seat.drop-target { outline: 3px dashed var(--accent); outline-offset: -2px; background: var(--accent-soft); }
+body.dragging-seat, body.dragging-seat * { cursor: grabbing !important; }
+.drag-ghost {
+  position: fixed; left: 0; top: 0; z-index: 2147483001; pointer-events: none; margin: -1.4rem 0 0 -2rem;
+  padding: 0.35rem 0.7rem; border-radius: 6px; background: var(--accent); color: var(--card); font-weight: 700; font-size: 0.9rem;
+  box-shadow: 0 4px 12px var(--shadow); white-space: nowrap;
+}
+
+.pairs-box { margin-top: 0.8rem; padding-top: 0.6rem; border-top: 1px solid var(--border); }
+.pairs-box h3.sub { margin: 0 0 0.3rem; }
+.pair-list { list-style: none; display: flex; flex-wrap: wrap; gap: 0.35rem; margin: 0.3rem 0; }
+.pair-list li { display: inline-flex; align-items: center; gap: 0.25rem; border: 1px solid var(--border); border-radius: 6px; padding: 0 0 0 0.5rem; font-size: 0.85rem; background: var(--seat); }
+.pair-type { font-size: 0.72rem; font-weight: 700; padding: 0 0.35rem; border-radius: 4px; border: 1px solid currentColor; }
+.pair.ng .pair-type { color: var(--danger); }
+.pair.want .pair-type { color: var(--accent); }
+.pair-list .btn-x { min-height: 2.75rem; min-width: 2.75rem; border: none; }
+.scope-row { margin: 0.2rem 0 0; }
+.scope-row > label { font-size: 0.85rem; font-weight: 600; margin: 0; }
+.scope-row select { flex: 1 1 10rem; }
+
+/* 折りたたみのカード（席の並び・条件・印刷・記録） */
+details.card.fold > summary { cursor: pointer; list-style: none; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 0.6rem; min-height: 2.75rem; }
+details.card.fold > summary::-webkit-details-marker { display: none; }
+details.card.fold > summary::before { content: '▸'; color: var(--accent); }
+details.card.fold[open] > summary::before { content: '▾'; }
+details.card.fold > summary h2 { display: inline; border: none; margin: 0; padding: 0; }
+details.card.fold[open] > summary { margin-bottom: 0.8rem; border-bottom: 1px solid var(--border); padding-bottom: 0.4rem; }
+.fold-state { font-size: 0.8rem; color: var(--muted); }
+
+/* 名前を選ぶ（dialog） */
+.dlg {
+  width: min(92vw, 30rem); max-height: calc(100dvh - 1.5rem); margin: 0.75rem auto auto; padding: 1rem;
+  border: 1px solid var(--border); border-radius: 10px; background: var(--card); color: var(--text); box-shadow: 0 8px 28px var(--shadow);
+}
+.dlg[open] { display: flex; flex-direction: column; }
+.dlg::backdrop { background: rgba(0, 0, 0, 0.35); }
+.dlg-title { font-weight: 700; color: var(--accent); }
+.dlg-label { display: block; font-weight: 600; font-size: 0.9rem; margin-top: 0.4rem; }
+.pick-q { width: 100%; padding: 0.5rem; font-size: 1rem; border: 1px solid var(--border); border-radius: 6px; background: var(--seat); color: var(--text); margin: 0.3rem 0; }
+.pick-list { flex: 1 1 auto; min-height: 6rem; max-height: min(40dvh, 16rem); overflow-y: auto; border: 1px solid var(--border); border-radius: 6px; padding: 0.2rem; }
+.pick-list:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.opt { display: flex; justify-content: space-between; gap: 0.6rem; align-items: center; min-height: 2.75rem; padding: 0.2rem 0.6rem; border-radius: 4px; cursor: pointer; }
+.opt + .opt { border-top: 1px solid var(--bg-2); }
+.opt:hover, .opt.active { background: var(--accent-soft); }
+.opt.active { outline: 2px solid var(--accent); outline-offset: -2px; }
+.opt[aria-selected="true"] { font-weight: 700; color: var(--accent); }
+.opt[aria-selected="true"] .opt-name::before { content: '✓ '; }
+.opt-sub { font-size: 0.78rem; color: var(--muted); flex: none; }
+.opt-none { padding: 0.6rem; color: var(--muted); font-size: 0.85rem; }
+.pair-sel { min-height: 1.4em; font-size: 0.9rem; }
+.dlg-foot { margin-bottom: 0; }
+
 /* 大画面 */
 body.stage-open { overflow: hidden; }
 .stage {
@@ -301,3 +379,6 @@ body.stage-open { overflow: hidden; }
   ins.adsbygoogle, .google-auto-placed, iframe[id^="aswift"], iframe[id^="google_ads"] { display: none !important; }
 }
 .stage:focus { outline: none; }
+@media (max-width: 480px) {
+  .run-row .btn-big { font-size: 1rem; padding: 0.7rem 1rem; }
+}
