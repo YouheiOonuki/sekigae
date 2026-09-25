@@ -248,11 +248,12 @@
       <p id="share-msg" class="small" aria-live="polite"></p>
       <input type="text" id="share-url" class="share-url" readonly hidden aria-label="共有リンク">
       <h3 class="sub">ファイルに保存（機種変更・ブラウザのデータを消す前に）</h3>
-      <p class="hint">名簿・条件・記録はこの端末のブラウザ（localStorage、キー sekigae_data）にだけ保存され、外部には送信されません。</p>
+      <p class="hint">名簿・条件・記録はこの端末のブラウザ（localStorage、キー sekigae_ で始まるもの）にだけ保存され、外部には送信されません。書き出し・読み込み・消去はこの画面のボタンから。</p>
       <p class="btn-row">
         <!-- 保存内容のファイルへの書き出し・読み込み（README「ツールを追加するとき」20） -->
         <button type="button" id="backup-export" class="btn btn-sub">ファイルに書き出す</button>
         <button type="button" id="backup-import" class="btn btn-sub">ファイルから読み込む</button>
+        <button type="button" class="btn btn-sub" data-reset-storage="sekigae_">保存した内容をすべて消す（初期状態に戻す）</button>
       </p>
       <input type="file" id="backup-file" accept=".json,application/json" hidden>
       <p id="backup-msg" class="small" aria-live="polite"></p>
@@ -327,6 +328,7 @@
 
   <script src="./text.js"></script>
   <script src="./calc.js"></script>
+  <script src="./reset-storage.js"></script>
   <script src="./main.js"></script>
   <!-- Cloudflare Web Analytics（Cookie を使わないアクセス解析） --><script type='module' src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "b79bf821e1fd4b6683866d493b1de426"}'></script><!-- End Cloudflare Web Analytics -->
 </body>
