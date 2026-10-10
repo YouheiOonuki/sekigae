@@ -69,7 +69,7 @@ JavaScript から出す文（理由・お知らせ・ボタンの切り替え・
 | `calc.js` | 席を決めるロジック・共有リンク・保存データの正規化・バックアップ（画面から切り離した純粋関数） |
 | `text.js` | JavaScript から出す文（`TEXT`） |
 | `main.js` | 画面の制御・保存・共有リンク・大画面・印刷 |
-| `style.css` | 見た目（和紙風の配色、ダークモード対応、印刷は A4 横） |
+| `style.css` | 見た目（和紙風の配色、ダークモード対応、印刷は A4 横）。先頭の `yorozu-common:begin`〜`end` はサイト共通の部品とトークン（手で直さない。正本は youheioonuki.github.io の `tools/common/yorozu-common.css`、`tools/sync-common.mjs` で配る） |
 | `404.html` | ツール配下の存在しない URL で出るページ（サイト共通のもの） |
 | `favicon.svg` / `apple-touch-icon.png` / `og-image.png` | アイコン / ホーム画面用アイコン / SNS 共有用画像（1200×630） |
 | `sitemap.xml` | サイトマップ（robots.txt はドメイン直下で管理） |
