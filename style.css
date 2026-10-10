@@ -243,7 +243,7 @@ textarea {
 .notice { border-color: var(--accent); }
 .result-head { margin: 0.8rem 0 0.4rem; }
 .next-step { margin-top: 0.8rem; padding-top: 0.6rem; border-top: 1px dashed var(--border); font-size: 0.92rem; }
-.share-url { width: 100%; padding: 0.4rem; font-size: 0.8rem; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-2); color: var(--text); }
+.share-url { width: 100%; padding: 0.4rem; font-size: 0.8rem; border: 1px solid var(--input-border); border-radius: 6px; background: var(--bg-2); color: var(--text); }
 
 /* 条件の行 */
 .cons-block { border-top: 1px solid var(--border); padding: 0.5rem 0; }
@@ -362,7 +362,7 @@ details.card.fold[open] > summary { margin-bottom: 0.8rem; border-bottom: 1px so
 .dlg::backdrop { background: rgba(0, 0, 0, 0.35); }
 .dlg-title { font-weight: 700; color: var(--accent); }
 .dlg-label { display: block; font-weight: 600; font-size: 0.9rem; margin-top: 0.4rem; }
-.pick-q { width: 100%; padding: 0.5rem; font-size: 1rem; border: 1px solid var(--border); border-radius: 6px; background: var(--seat); color: var(--text); margin: 0.3rem 0; }
+.pick-q { width: 100%; padding: 0.5rem; font-size: 1rem; border: 1px solid var(--input-border); border-radius: 6px; background: var(--seat); color: var(--text); margin: 0.3rem 0; }
 .pick-list { flex: 1 1 auto; min-height: 6rem; max-height: min(40dvh, 16rem); overflow-y: auto; border: 1px solid var(--border); border-radius: 6px; padding: 0.2rem; }
 .opt { display: flex; justify-content: space-between; gap: 0.6rem; align-items: center; min-height: 2.75rem; padding: 0.2rem 0.6rem; border-radius: 4px; cursor: pointer; }
 .opt + .opt { border-top: 1px solid var(--bg-2); }
