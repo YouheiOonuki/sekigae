@@ -96,6 +96,9 @@ a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset:
 /* yorozu-common:end */
 
 :root {
+  /* 席の枠線。席の地（--seat・--seat-hidden）とまわりの地（--bg・--bg-2・--card）のどれとも対比 3:1 以上（WCAG 1.4.11、企画書 59 の 8 章 3）
+     ライト: 入力欄の枠と同じ値（最小 3.36:1）。ダーク: 隠した席の地との対比のため入力欄より明るく（最小 3.44:1） */
+  --seat-border: var(--input-border);
   --danger: #a3302a;
   --seat: #fffdf8;
   --seat-hidden: #efe2cf;
@@ -103,6 +106,7 @@ a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset:
 
 @media (prefers-color-scheme: dark) {
   :root {
+    --seat-border: #9a8a73;
     --danger: #f08a80;
     --seat: #332c24;
     --seat-hidden: #43372a;
@@ -266,7 +270,7 @@ textarea {
 .seat-grid:not(.big):not(.print) .cgrid { min-width: min(100%, 22rem); }
 .seat {
   display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative;
-  min-height: 2.9rem; padding: 0.15rem 0.1rem; border: 1px solid var(--border); border-radius: 6px;
+  min-height: 2.9rem; padding: 0.15rem 0.1rem; border: 1px solid var(--seat-border); border-radius: 6px;
   background: var(--seat); color: var(--text); font: inherit; font-size: 0.8rem; text-align: center; overflow: hidden;
 }
 button.seat { cursor: pointer; }
