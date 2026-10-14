@@ -60,7 +60,6 @@
         <button type="button" id="shared-save" class="btn">この端末に保存する</button>
         <a class="btn btn-sub" href="./">自分の席替えを新しく作る</a>
       </p>
-      <p class="small">席の並び・名簿・条件を入れて、くじで席を決めます。前回と同じ席を避ける・隣にしない組・前の席の指定ができます。登録なし・無料。</p>
     </div>
 
     <section class="card" aria-labelledby="h-people">
@@ -83,21 +82,18 @@
         <label><input type="radio" name="plist" value="numbers"> 番号だけ</label>
       </div>
       <div id="names-panel" class="field">
-        <label for="names">1 行に 1 人（名簿から貼り付け）</label>
+        <label for="names">1 行に 1 人（名簿から貼り付け。「名前,男」「名前,女」で男女交互）</label>
         <textarea id="names" rows="5" spellcheck="false" placeholder="例：&#10;青木&#10;井上,女&#10;上田,男"></textarea>
-        <p class="hint">「名前,男」「名前,女」と書くと男女交互に使えます。名前はこの端末の外に送りません。</p>
       </div>
       <div id="numbers-panel" class="field" hidden>
-        <label for="count">人数</label>
+        <label for="count">人数（1 番から順に番号。出席番号に）</label>
         <input type="number" id="count" inputmode="numeric" min="1" max="300" value="30">
-        <p class="hint">1 番から順に番号で席を決めます（出席番号として使えます）。</p>
       </div>
       <p id="people-summary" class="small" aria-live="polite"></p>
     </section>
 
     <section class="card" aria-labelledby="h-board" id="sec-run">
-      <h2 id="h-board"><span class="step">2</span>座席表</h2>
-      <p class="hint">席をタップして人を置くと固定（ピン）。残りはくじで決まります。</p>
+      <h2 id="h-board"><span class="step">2</span>座席表（席をタップで固定）</h2>
       <div id="tray-wrap" hidden>
         <p id="tray-head" class="tray-head"></p>
         <div id="tray" class="tray" role="group" aria-labelledby="tray-head"></div>
@@ -127,7 +123,7 @@
         </p>
         <p id="decide-msg" class="small" aria-live="polite"></p>
         <p class="small"><a href="../print-help.html">スマホで印刷するには →</a></p>
-        <p id="next-step" class="next-step" hidden>当日の精算は → <a href="../easy-split/">傾斜割り勘（幹事 0 円・2 次会の合算も）</a></p>
+        <p id="next-step" class="next-step" hidden><a href="../easy-split/">当日の精算は傾斜割り勘で（幹事 0 円・2 次会の合算も）</a></p>
       </div>
 
       <div class="pairs-box">
