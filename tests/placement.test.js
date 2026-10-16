@@ -310,3 +310,12 @@ test('新しい理由・お知らせにも文がある', () => {
   }
   assert.match(TEXT.reason({ code: 'conflict', cat: 'ng', others: [], pair: ['x', 'y'] }), /「x」と「y」を隣にしない組を外すと決まります/);
 });
+
+test('名簿の長い 1 行で固まらない（K191 段 2: 正規表現の 2 乗以上）。普通の行の読み方は変えない', () => {
+  const t = Date.now();
+  const r = C.parsePeople('('.repeat(6700) + ' '.repeat(13000) + 'x\n山田太郎（男）\n佐藤花子, 女');
+  assert.ok(Date.now() - t < 1000, '1 秒以内');
+  const byName = Object.fromEntries(r.people.map((p) => [p.name, p.g]));
+  assert.equal(byName['山田太郎'], 'M');
+  assert.equal(byName['佐藤花子'], 'F');
+});

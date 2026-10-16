@@ -202,7 +202,8 @@
   function parsePeople(text) {
     var people = [], notes = [], seen = {}, dup = [], cut = 0;
     String(text || '').split(/\r?\n/).forEach(function (line) {
-      var raw = line.replace(/　/g, ' ').trim();
+      // 1 行は名前（30 字）と性別の印が入る長さで切ってから照合する。長い 1 行で下の正規表現が 2 乗以上に遅くなる（K191 段 2）
+      var raw = line.replace(/　/g, ' ').trim().slice(0, LIMITS.nameLen + 20).trim();
       if (!raw) return;
       var name = raw, g = '';
       var m = /^(.*?)\s*[,，、\t/／]\s*([^,，、\t/／]*)$/.exec(raw);
