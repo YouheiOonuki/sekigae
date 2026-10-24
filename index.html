@@ -18,8 +18,8 @@
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="theme-color" content="#8b4513" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#1c1814" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#eef0f2" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#15191d" media="(prefers-color-scheme: dark)">
 
   <script type="application/ld+json">
   {
@@ -58,7 +58,7 @@
       <p id="shared-msg"></p>
       <p class="btn-row">
         <button type="button" id="shared-save" class="btn">この端末に保存する</button>
-        <a class="btn btn-sub" href="./">自分の席替えを新しく作る</a>
+        <a class="btn" href="./">自分の席替えを新しく作る</a>
       </p>
     </div>
 
@@ -70,9 +70,9 @@
         <details class="mini">
           <summary>追加・変更</summary>
           <p class="btn-row">
-            <button type="button" id="group-new" class="btn btn-sub btn-s">新しく作る</button>
-            <button type="button" id="group-rename" class="btn btn-sub btn-s">名前を変える</button>
-            <button type="button" id="group-delete" class="btn btn-sub btn-s">削除</button>
+            <button type="button" id="group-new" class="btn btn-s">新しく作る</button>
+            <button type="button" id="group-rename" class="btn btn-s">名前を変える</button>
+            <button type="button" id="group-delete" class="btn btn-s">削除</button>
           </p>
           <p class="hint">クラスや会ごとに、席の並び・名簿・条件・これまでの席を分けて保存します。</p>
         </details>
@@ -102,12 +102,12 @@
       <p id="board-msg" class="board-msg" aria-live="polite"></p>
       <p class="btn-row" id="reveal-ctrl" hidden>
         <button type="button" id="reveal-next" class="btn">次の人</button>
-        <button type="button" id="reveal-all" class="btn btn-sub">全部出す</button>
+        <button type="button" id="reveal-all" class="btn">全部出す</button>
         <span id="reveal-count" class="small"></span>
       </p>
       <p class="btn-row run-row">
-        <button type="button" id="run" class="btn btn-big">席替えする</button>
-        <button type="button" id="run-stage" class="btn btn-big btn-sub">大画面で</button>
+        <button type="button" id="run" class="btn btn-primary">席替えする</button>
+        <button type="button" id="run-stage" class="btn">大画面で</button>
       </p>
       <div id="status" class="status" aria-live="polite"></div>
 
@@ -116,10 +116,10 @@
         <ul id="notes" class="notes"></ul>
         <p class="btn-row" id="result-actions">
           <button type="button" id="decide" class="btn">この席で決定（記録する）</button>
-          <button type="button" id="swap" class="btn btn-sub" aria-pressed="false">2 人を入れ替える</button>
-          <button type="button" id="show-stage" class="btn btn-sub">大画面で見せる</button>
-          <button type="button" id="print" class="btn btn-sub">座席表を印刷</button>
-          <button type="button" id="pins-clear" class="btn btn-sub">固定をすべて外す</button>
+          <button type="button" id="swap" class="btn" aria-pressed="false">2 人を入れ替える</button>
+          <button type="button" id="show-stage" class="btn">大画面で見せる</button>
+          <button type="button" id="print" class="btn">座席表を印刷</button>
+          <button type="button" id="pins-clear" class="btn">固定をすべて外す</button>
         </p>
         <p id="decide-msg" class="small" aria-live="polite"></p>
         <p class="small"><a href="../print-help.html">スマホで印刷するには →</a></p>
@@ -130,7 +130,7 @@
         <h3 class="sub" id="h-pairs">組の条件 <span class="badge" id="n-pairs"></span></h3>
         <ul id="pair-list" class="pair-list" aria-labelledby="h-pairs"></ul>
         <p class="btn-row">
-          <button type="button" id="pair-add" class="btn btn-sub btn-s">2 人を選んで組にする</button>
+          <button type="button" id="pair-add" class="btn btn-s">2 人を選んで組にする</button>
         </p>
         <div class="field inline-field scope-row">
           <label for="ng-scope">「隣」の範囲</label>
@@ -189,7 +189,7 @@
 
       <div id="party-panel" hidden>
         <ul id="tables" class="table-list"></ul>
-        <p><button type="button" id="table-add" class="btn btn-sub">テーブルを足す</button></p>
+        <p><button type="button" id="table-add" class="btn">テーブルを足す</button></p>
         <p class="hint">1 つのテーブルは向かい合わせの 2 列です（奥の列に半分、手前に残り）。</p>
       </div>
       <p id="seat-count" class="small"></p>
@@ -206,7 +206,7 @@
         <h3 class="sub">前の席・後ろの席にしたい人 <span class="badge" id="n-zone"></span></h3>
         <p class="hint">目の見え方・聞こえ方や、背の高さなどに。「前から 2」なら、前から 2 番目の並びまでのどこかになります。</p>
         <ul id="zone-list" class="rows"></ul>
-        <p><button type="button" id="zone-add" class="btn btn-sub">指定を足す</button></p>
+        <p><button type="button" id="zone-add" class="btn">指定を足す</button></p>
       </div>
       <p class="hint">特定の席に決めたい人は、座席表でその席をタップして置きます。隣にしない・隣にしたい 2 人は「組の条件」で。</p>
     </details>
@@ -240,7 +240,7 @@
       <label class="check"><input type="checkbox" id="share-names"> 名簿（名前）と条件・決まった席も入れる</label>
       <p class="hint">入れないときは、席の並びとくじ番号だけです。名前を入れると、リンクを受け取った人が名前を読めます。</p>
       <p class="btn-row">
-        <button type="button" id="share" class="btn btn-sub">共有リンクをコピー</button>
+        <button type="button" id="share" class="btn">共有リンクをコピー</button>
       </p>
       <p id="share-msg" class="small" aria-live="polite"></p>
       <input type="text" id="share-url" class="share-url" readonly hidden aria-label="共有リンク">
@@ -248,9 +248,9 @@
       <p class="hint">名簿・条件・記録はこの端末のブラウザ（localStorage、キー sekigae_ で始まるもの）にだけ保存され、外部には送信されません。書き出し・読み込み・消去はこの画面のボタンから。</p>
       <p class="btn-row">
         <!-- 保存内容のファイルへの書き出し・読み込み（README「ツールを追加するとき」20） -->
-        <button type="button" id="backup-export" class="btn btn-sub">ファイルに書き出す</button>
-        <button type="button" id="backup-import" class="btn btn-sub">ファイルから読み込む</button>
-        <button type="button" class="btn btn-sub" data-reset-storage="sekigae_">保存した内容をすべて消す（初期状態に戻す）</button>
+        <button type="button" id="backup-export" class="btn">ファイルに書き出す</button>
+        <button type="button" id="backup-import" class="btn">ファイルから読み込む</button>
+        <button type="button" class="btn" data-reset-storage="sekigae_">保存した内容をすべて消す（初期状態に戻す）</button>
       </p>
       <input type="file" id="backup-file" accept=".json,application/json" hidden>
       <p id="backup-msg" class="small" aria-live="polite"></p>
@@ -281,9 +281,9 @@
       <span class="stage-btns">
         <button type="button" id="stage-run" class="btn">席替えする</button>
         <button type="button" id="stage-next" class="btn">次の人</button>
-        <button type="button" id="stage-all" class="btn btn-sub">全部出す</button>
-        <button type="button" id="stage-sound" class="btn btn-sub" aria-pressed="false"></button>
-        <button type="button" id="stage-close" class="btn btn-sub">閉じる</button>
+        <button type="button" id="stage-all" class="btn">全部出す</button>
+        <button type="button" id="stage-sound" class="btn" aria-pressed="false"></button>
+        <button type="button" id="stage-close" class="btn">閉じる</button>
       </span>
     </div>
     <div id="stage-grid" class="seat-grid big"></div>
@@ -295,15 +295,15 @@
     <p class="dlg-title" id="seat-dlg-title"></p>
     <p id="seat-dlg-now" class="small"></p>
     <p class="btn-row" id="seat-dlg-acts">
-      <button type="button" id="seat-pin" class="btn btn-sub btn-s"></button>
-      <button type="button" id="seat-swap" class="btn btn-sub btn-s">入れ替える</button>
-      <button type="button" id="seat-clear" class="btn btn-sub btn-s">席を空ける</button>
-      <button type="button" id="seat-pair" class="btn btn-sub btn-s">組の条件</button>
+      <button type="button" id="seat-pin" class="btn btn-s"></button>
+      <button type="button" id="seat-swap" class="btn btn-s">入れ替える</button>
+      <button type="button" id="seat-clear" class="btn btn-s">席を空ける</button>
+      <button type="button" id="seat-pair" class="btn btn-s">組の条件</button>
     </p>
     <label for="seat-q" class="dlg-label">この席に置く人</label>
     <input type="search" id="seat-q" class="pick-q" placeholder="名前で探す" autocomplete="off" aria-controls="seat-list">
     <div id="seat-list" class="pick-list" role="listbox" tabindex="0" aria-label="この席に置く人"></div>
-    <p class="btn-row dlg-foot"><button type="button" id="seat-dlg-close" class="btn btn-sub">閉じる</button></p>
+    <p class="btn-row dlg-foot"><button type="button" id="seat-dlg-close" class="btn">閉じる</button></p>
   </dialog>
 
   <!-- 組の条件: 2 人を選んで「隣にしない」「隣にしたい」 -->
@@ -316,7 +316,7 @@
     <p class="btn-row dlg-foot">
       <button type="button" id="pair-ng" class="btn" disabled>隣にしない</button>
       <button type="button" id="pair-want" class="btn" disabled>隣にしたい</button>
-      <button type="button" id="pair-dlg-close" class="btn btn-sub">閉じる</button>
+      <button type="button" id="pair-dlg-close" class="btn">閉じる</button>
     </p>
   </dialog>
 
