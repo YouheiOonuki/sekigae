@@ -111,7 +111,7 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 
 /* ボタン（主は .btn-primary、ほかは .btn。色と線は皮が持つ） */
 .btn { display: inline-flex; align-items: center; justify-content: center; min-height: var(--tap); text-decoration: none; }
-a.btn-primary { color: var(--on-accent); }
+a.btn { color: var(--text); } /* 皮の a の色（詳細度 0,0,1）が皮の .btn（0）に勝つので、副ボタンのリンクは字を本文の色に戻す */
 
 /* 読みもの（guide.html） */
 .content h3 { margin: var(--sp-4) 0 var(--sp-1); }
@@ -146,7 +146,7 @@ a.btn-primary { color: var(--on-accent); }
 .hint { font-size: var(--fs-s); color: var(--muted); margin: var(--sp-1) 0; }
 .step {
   display: inline-block; min-width: 1.5em; height: 1.5em; line-height: 1.5em; margin-right: 0.4em;
-  border-radius: 50%; background: var(--text); color: var(--card); text-align: center; font-size: 0.85em;
+  border-radius: var(--radius); background: var(--text); color: var(--card); text-align: center; font-size: 0.85em;
 }
 h3.sub { margin: var(--sp-4) 0 var(--sp-1); }
 h3.sub:first-of-type { margin-top: 0; }
@@ -155,8 +155,8 @@ h3.sub:first-of-type { margin-top: 0; }
 .inline-field select { max-width: 100%; flex: 1 1 10rem; }
 .grid-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: 0 var(--sp-4); align-items: end; }
 .grid-fields .field select, .grid-fields .field input[type="text"] { max-width: none; }
-.check { display: flex; gap: var(--sp-2); align-items: flex-start; margin: var(--sp-1) 0; cursor: pointer; }
-.check input { margin-top: 0.35em; width: 1.05rem; height: 1.05rem; flex: none; accent-color: var(--accent); }
+.check { display: flex; gap: var(--sp-2); align-items: center; min-height: var(--tap); margin: var(--sp-1) 0; cursor: pointer; }
+.check input { width: 1.05rem; height: 1.05rem; flex: none; accent-color: var(--accent); }
 
 .seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--input-border); border-radius: var(--radius); overflow: hidden; margin-bottom: var(--sp-3); }
 .seg label { display: flex; align-items: center; gap: var(--sp-1); min-height: var(--tap); padding: 0 var(--sp-3); cursor: pointer; }
@@ -180,12 +180,12 @@ textarea { width: 100%; line-height: 1.5; color: var(--text); resize: vertical; 
 .notes li + li { margin-top: var(--sp-1); }
 .result-head { margin: var(--sp-3) 0 var(--sp-2); }
 .next-step { margin-top: var(--sp-3); padding-top: var(--sp-3); border-top: 1px solid var(--border); }
-.share-url { width: 100%; font-size: var(--fs-s); background: var(--bg-2); color: var(--text); }
+.share-url { width: 100%; background: var(--bg-2); color: var(--text); }
 
 /* 条件の行 */
 .cons-block { border-top: 1px solid var(--border); padding: var(--sp-2) 0; }
 .cons-block:first-of-type { margin-top: var(--sp-3); }
-.badge:not(:empty) { display: inline-block; margin-left: 0.5em; padding: 0 0.5em; border-radius: 1em; background: var(--text); color: var(--card); font-size: var(--fs-s); }
+.badge:not(:empty) { display: inline-block; margin-left: 0.5em; padding: 0 0.5em; border-radius: var(--radius); background: var(--text); color: var(--card); font-size: var(--fs-s); }
 .rows, .table-list, .history { list-style: none; margin: var(--sp-2) 0; }
 .rows li, .table-row { display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: center; margin-bottom: var(--sp-2); }
 .rows select { flex: 1 1 8rem; min-width: 0; }
