@@ -319,7 +319,7 @@
       for (var n = 1; n <= C.LIMITS.tableSeats; n++) { var op = el('option', null, U.tableSeats(n)); op.value = n; seats.appendChild(op); }
       seats.value = t.seats;
       seats.addEventListener('change', function () { var v = +this.value; setLayout(function (l) { l.party.tables[i].seats = v; }); });
-      var del = el('button', 'btn btn-sub btn-x', '✕');
+      var del = el('button', 'btn btn-x', '✕');
       del.type = 'button';
       del.setAttribute('aria-label', U.tableRemove(t.name));
       del.disabled = L.party.tables.length <= 1;
@@ -398,7 +398,7 @@
     return s;
   }
   function removeBtn(label, onClick) {
-    var b = el('button', 'btn btn-sub btn-x', '✕');
+    var b = el('button', 'btn btn-x', '✕');
     b.type = 'button';
     b.setAttribute('aria-label', label);
     b.addEventListener('click', onClick);
@@ -1158,7 +1158,7 @@
       var li = el('li');
       li.appendChild(el('span', null, U.historyItem(h.at, Object.keys(h.assign).length) + (i === 0 ? U.historyPrevMark : '')));
       if (i > 0) {
-        var use = el('button', 'btn btn-sub btn-s', U.historyUse);
+        var use = el('button', 'btn btn-s', U.historyUse);
         use.type = 'button';
         use.addEventListener('click', function () {
           g.history.splice(i, 1); g.history.unshift(h);
@@ -1166,7 +1166,7 @@
         });
         li.appendChild(use);
       }
-      var del = el('button', 'btn btn-sub btn-s', U.del);
+      var del = el('button', 'btn btn-s', U.del);
       del.type = 'button';
       del.setAttribute('aria-label', U.historyDelLabel(h.at));
       del.addEventListener('click', function () {
