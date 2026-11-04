@@ -539,6 +539,7 @@
     }
     renderResult();
     if (reveal.anim) shuffleAnimation(); else if (how === 'all') sound.chime();
+    window.yzUsed?.();
     return true;
   }
 
